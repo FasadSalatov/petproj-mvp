@@ -39,6 +39,20 @@ class Config:
     # apparent size on screen.
     cat_scale: float = 1.5
 
+    # Vertical offset for the cat sprite, in screen pixels. Positive values
+    # push the cat DOWN (deeper into the taskbar); negative values lift it.
+    # Compensates for the empty padding under the cat in PixelLab's 68x68
+    # canvas — without it the cat appears to float above the taskbar.
+    cat_y_offset_px: int = 0
+
+    # Walk and run speeds for the cat, in pixels per tick (60ms tick).
+    cat_walk_speed_px: float = 2.0
+    cat_run_speed_px: float = 8.0
+
+    # Debug: when True, idle-detection is bypassed — actors run continuously
+    # and never go into FLEEING from user input. Useful for tuning visuals.
+    debug_always_on: bool = False
+
     @classmethod
     def load(cls) -> "Config":
         if not os.path.exists(CONFIG_PATH):

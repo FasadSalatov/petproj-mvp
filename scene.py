@@ -204,9 +204,13 @@ class Scene(QObject):
         self.chair.show()
 
     def _user_active(self) -> bool:
+        if self.config.debug_always_on:
+            return False
         return seconds_since_last_input() < 1.5
 
     def _user_idle_long_enough(self) -> bool:
+        if self.config.debug_always_on:
+            return True
         return seconds_since_last_input() >= self.config.idle_threshold_s
 
     def _person_center_x(self) -> int:

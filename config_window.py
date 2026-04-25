@@ -9,7 +9,7 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QGuiApplication
 from PyQt6.QtWidgets import (
     QCheckBox, QComboBox, QDialog, QDoubleSpinBox, QFormLayout,
-    QGroupBox, QHBoxLayout, QLabel, QPushButton, QVBoxLayout,
+    QGroupBox, QHBoxLayout, QLabel, QPushButton, QSpinBox, QVBoxLayout,
 )
 
 from config import Config
@@ -38,6 +38,11 @@ class ConfigWindow(QDialog):
         self.idle_spin.setValue(config.idle_threshold_s)
         self.idle_spin.valueChanged.connect(self._on_idle_changed)
         beh_form.addRow("Idle threshold:", self.idle_spin)
+
+        self.always_on_check = QCheckBox()
+        self.always_on_check.setChecked(config.debug_always_on)
+        self.always_on_check.toggled.connect(self._on_always_on_changed)
+        beh_form.addRow("Always on (debug):", self.always_on_check)
 
         root.addWidget(beh)
 
@@ -82,6 +87,35 @@ class ConfigWindow(QDialog):
         self.cat_scale_spin.valueChanged.connect(self._on_cat_scale_changed)
         act_form.addRow("Cat size:", self.cat_scale_spin)
 
+        # Cat y-offset: positive = lower (compensates PixelLab canvas padding).
+        self.cat_y_offset_spin = QSpinBox()
+        self.cat_y_offset_spin.setRange(-100, 100)
+        self.cat_y_offset_spin.setSingleStep(1)
+        self.cat_y_offset_spin.setSuffix(" px")
+        self.cat_y_offset_spin.setValue(config.cat_y_offset_px)
+        self.cat_y_offset_spin.valueChanged.connect(self._on_cat_y_offset_changed)
+        act_form.addRow("Cat y-offset:", self.cat_y_offset_spin)
+
+        # Cat walk speed (pixels/tick).
+        self.cat_walk_speed_spin = QDoubleSpinBox()
+        self.cat_walk_speed_spin.setRange(0.25, 20.0)
+        self.cat_walk_speed_spin.setSingleStep(0.25)
+        self.cat_walk_speed_spin.setDecimals(2)
+        self.cat_walk_speed_spin.setSuffix(" px/tick")
+        self.cat_walk_speed_spin.setValue(config.cat_walk_speed_px)
+        self.cat_walk_speed_spin.valueChanged.connect(self._on_cat_walk_speed_changed)
+        act_form.addRow("Cat walk speed:", self.cat_walk_speed_spin)
+
+        # Cat run speed (pixels/tick).
+        self.cat_run_speed_spin = QDoubleSpinBox()
+        self.cat_run_speed_spin.setRange(0.5, 30.0)
+        self.cat_run_speed_spin.setSingleStep(0.5)
+        self.cat_run_speed_spin.setDecimals(2)
+        self.cat_run_speed_spin.setSuffix(" px/tick")
+        self.cat_run_speed_spin.setValue(config.cat_run_speed_px)
+        self.cat_run_speed_spin.valueChanged.connect(self._on_cat_run_speed_changed)
+        act_form.addRow("Cat run speed:", self.cat_run_speed_spin)
+
         root.addWidget(act)
 
         # ---- Close button ----
@@ -118,3 +152,23 @@ class ConfigWindow(QDialog):
         self._config.cat_scale = float(v)
         self._config.save()
         self._on_change("cat_scale")
+
+    def _on_cat_y_offset_changed(self, v: int) -> None:
+        self._config.cat_y_offset_px = int(v)
+        self._config.save()
+        self._on_change("cat_y_offset_px")
+
+    def _on_cat_walk_speed_changed(self, v: float) -> None:
+        self._config.cat_walk_speed_px = float(v)
+        self._config.save()
+        self._on_change("cat_walk_speed_px")
+
+    def _on_cat_run_speed_changed(self, v: float) -> None:
+        self._config.cat_run_speed_px = float(v)
+        self._config.save()
+        self._on_change("cat_run_speed_px")
+
+    def _on_always_on_changed(self, v: bool) -> None:
+        self._config.debug_always_on = bool(v)
+        self._config.save()
+        self._on_change("debug_always_on")

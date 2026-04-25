@@ -4,641 +4,893 @@
       "frame": {
         "x": 0,
         "y": 0,
-        "w": 68,
-        "h": 68
+        "w": 50,
+        "h": 35
       },
       "rotated": false,
       "trimmed": false,
       "spriteSourceSize": {
         "x": 0,
         "y": 0,
-        "w": 68,
-        "h": 68
+        "w": 50,
+        "h": 35
       },
       "sourceSize": {
-        "w": 68,
-        "h": 68
+        "w": 50,
+        "h": 35
       },
       "duration": 100
     },
     "cat stand_1.aseprite": {
       "frame": {
-        "x": 68,
+        "x": 50,
         "y": 0,
-        "w": 68,
-        "h": 68
+        "w": 50,
+        "h": 35
       },
       "rotated": false,
       "trimmed": false,
       "spriteSourceSize": {
         "x": 0,
         "y": 0,
-        "w": 68,
-        "h": 68
+        "w": 50,
+        "h": 35
       },
       "sourceSize": {
-        "w": 68,
-        "h": 68
+        "w": 50,
+        "h": 35
       },
       "duration": 100
     },
     "cat stand_2.aseprite": {
       "frame": {
-        "x": 136,
+        "x": 100,
         "y": 0,
-        "w": 68,
-        "h": 68
+        "w": 50,
+        "h": 35
       },
       "rotated": false,
       "trimmed": false,
       "spriteSourceSize": {
         "x": 0,
         "y": 0,
-        "w": 68,
-        "h": 68
+        "w": 50,
+        "h": 35
       },
       "sourceSize": {
-        "w": 68,
-        "h": 68
+        "w": 50,
+        "h": 35
       },
       "duration": 100
     },
     "cat stand_3.aseprite": {
       "frame": {
-        "x": 204,
+        "x": 150,
         "y": 0,
-        "w": 68,
-        "h": 68
+        "w": 50,
+        "h": 35
       },
       "rotated": false,
       "trimmed": false,
       "spriteSourceSize": {
         "x": 0,
         "y": 0,
-        "w": 68,
-        "h": 68
+        "w": 50,
+        "h": 35
       },
       "sourceSize": {
-        "w": 68,
-        "h": 68
+        "w": 50,
+        "h": 35
       },
       "duration": 100
     },
     "cat stand_4.aseprite": {
       "frame": {
-        "x": 272,
+        "x": 200,
         "y": 0,
-        "w": 68,
-        "h": 68
+        "w": 50,
+        "h": 35
       },
       "rotated": false,
       "trimmed": false,
       "spriteSourceSize": {
         "x": 0,
         "y": 0,
-        "w": 68,
-        "h": 68
+        "w": 50,
+        "h": 35
       },
       "sourceSize": {
-        "w": 68,
-        "h": 68
+        "w": 50,
+        "h": 35
       },
       "duration": 100
     },
     "cat stand_5.aseprite": {
       "frame": {
-        "x": 340,
+        "x": 250,
         "y": 0,
-        "w": 68,
-        "h": 68
+        "w": 50,
+        "h": 35
       },
       "rotated": false,
       "trimmed": false,
       "spriteSourceSize": {
         "x": 0,
         "y": 0,
-        "w": 68,
-        "h": 68
+        "w": 50,
+        "h": 35
       },
       "sourceSize": {
-        "w": 68,
-        "h": 68
+        "w": 50,
+        "h": 35
       },
       "duration": 100
     },
     "cat stand_6.aseprite": {
       "frame": {
-        "x": 408,
+        "x": 300,
         "y": 0,
-        "w": 68,
-        "h": 68
+        "w": 50,
+        "h": 35
       },
       "rotated": false,
       "trimmed": false,
       "spriteSourceSize": {
         "x": 0,
         "y": 0,
-        "w": 68,
-        "h": 68
+        "w": 50,
+        "h": 35
       },
       "sourceSize": {
-        "w": 68,
-        "h": 68
+        "w": 50,
+        "h": 35
       },
       "duration": 100
     },
     "cat stand_7.aseprite": {
       "frame": {
-        "x": 476,
+        "x": 350,
         "y": 0,
-        "w": 68,
-        "h": 68
+        "w": 50,
+        "h": 35
       },
       "rotated": false,
       "trimmed": false,
       "spriteSourceSize": {
         "x": 0,
         "y": 0,
-        "w": 68,
-        "h": 68
+        "w": 50,
+        "h": 35
       },
       "sourceSize": {
-        "w": 68,
-        "h": 68
+        "w": 50,
+        "h": 35
       },
       "duration": 100
     },
     "cat walk_0.aseprite": {
       "frame": {
-        "x": 544,
+        "x": 400,
         "y": 0,
-        "w": 68,
-        "h": 68
+        "w": 50,
+        "h": 35
       },
       "rotated": false,
       "trimmed": false,
       "spriteSourceSize": {
         "x": 0,
         "y": 0,
-        "w": 68,
-        "h": 68
+        "w": 50,
+        "h": 35
       },
       "sourceSize": {
-        "w": 68,
-        "h": 68
+        "w": 50,
+        "h": 35
       },
       "duration": 100
     },
     "cat walk_1.aseprite": {
       "frame": {
-        "x": 612,
+        "x": 450,
         "y": 0,
-        "w": 68,
-        "h": 68
+        "w": 50,
+        "h": 35
       },
       "rotated": false,
       "trimmed": false,
       "spriteSourceSize": {
         "x": 0,
         "y": 0,
-        "w": 68,
-        "h": 68
+        "w": 50,
+        "h": 35
       },
       "sourceSize": {
-        "w": 68,
-        "h": 68
+        "w": 50,
+        "h": 35
       },
       "duration": 100
     },
     "cat walk_2.aseprite": {
       "frame": {
-        "x": 680,
+        "x": 500,
         "y": 0,
-        "w": 68,
-        "h": 68
+        "w": 50,
+        "h": 35
       },
       "rotated": false,
       "trimmed": false,
       "spriteSourceSize": {
         "x": 0,
         "y": 0,
-        "w": 68,
-        "h": 68
+        "w": 50,
+        "h": 35
       },
       "sourceSize": {
-        "w": 68,
-        "h": 68
+        "w": 50,
+        "h": 35
       },
       "duration": 100
     },
     "cat walk_3.aseprite": {
       "frame": {
-        "x": 748,
+        "x": 550,
         "y": 0,
-        "w": 68,
-        "h": 68
+        "w": 50,
+        "h": 35
       },
       "rotated": false,
       "trimmed": false,
       "spriteSourceSize": {
         "x": 0,
         "y": 0,
-        "w": 68,
-        "h": 68
+        "w": 50,
+        "h": 35
       },
       "sourceSize": {
-        "w": 68,
-        "h": 68
+        "w": 50,
+        "h": 35
+      },
+      "duration": 100
+    },
+    "cat walk_4.aseprite": {
+      "frame": {
+        "x": 600,
+        "y": 0,
+        "w": 50,
+        "h": 35
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 50,
+        "h": 35
+      },
+      "sourceSize": {
+        "w": 50,
+        "h": 35
+      },
+      "duration": 100
+    },
+    "cat walk_5.aseprite": {
+      "frame": {
+        "x": 650,
+        "y": 0,
+        "w": 50,
+        "h": 35
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 50,
+        "h": 35
+      },
+      "sourceSize": {
+        "w": 50,
+        "h": 35
+      },
+      "duration": 100
+    },
+    "cat walk_6.aseprite": {
+      "frame": {
+        "x": 700,
+        "y": 0,
+        "w": 50,
+        "h": 35
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 50,
+        "h": 35
+      },
+      "sourceSize": {
+        "w": 50,
+        "h": 35
+      },
+      "duration": 100
+    },
+    "cat walk_7.aseprite": {
+      "frame": {
+        "x": 750,
+        "y": 0,
+        "w": 50,
+        "h": 35
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 50,
+        "h": 35
+      },
+      "sourceSize": {
+        "w": 50,
+        "h": 35
       },
       "duration": 100
     },
     "cat run_0.aseprite": {
       "frame": {
-        "x": 816,
+        "x": 800,
         "y": 0,
-        "w": 68,
-        "h": 68
+        "w": 50,
+        "h": 35
       },
       "rotated": false,
       "trimmed": false,
       "spriteSourceSize": {
         "x": 0,
         "y": 0,
-        "w": 68,
-        "h": 68
+        "w": 50,
+        "h": 35
       },
       "sourceSize": {
-        "w": 68,
-        "h": 68
+        "w": 50,
+        "h": 35
       },
       "duration": 100
     },
     "cat run_1.aseprite": {
       "frame": {
-        "x": 884,
+        "x": 850,
         "y": 0,
-        "w": 68,
-        "h": 68
+        "w": 50,
+        "h": 35
       },
       "rotated": false,
       "trimmed": false,
       "spriteSourceSize": {
         "x": 0,
         "y": 0,
-        "w": 68,
-        "h": 68
+        "w": 50,
+        "h": 35
       },
       "sourceSize": {
-        "w": 68,
-        "h": 68
+        "w": 50,
+        "h": 35
       },
       "duration": 100
     },
     "cat run_2.aseprite": {
       "frame": {
-        "x": 952,
+        "x": 900,
         "y": 0,
-        "w": 68,
-        "h": 68
+        "w": 50,
+        "h": 35
       },
       "rotated": false,
       "trimmed": false,
       "spriteSourceSize": {
         "x": 0,
         "y": 0,
-        "w": 68,
-        "h": 68
+        "w": 50,
+        "h": 35
       },
       "sourceSize": {
-        "w": 68,
-        "h": 68
+        "w": 50,
+        "h": 35
       },
       "duration": 100
     },
     "cat run_3.aseprite": {
       "frame": {
-        "x": 1020,
+        "x": 950,
         "y": 0,
-        "w": 68,
-        "h": 68
+        "w": 50,
+        "h": 35
       },
       "rotated": false,
       "trimmed": false,
       "spriteSourceSize": {
         "x": 0,
         "y": 0,
-        "w": 68,
-        "h": 68
+        "w": 50,
+        "h": 35
       },
       "sourceSize": {
-        "w": 68,
-        "h": 68
+        "w": 50,
+        "h": 35
       },
       "duration": 100
     },
     "cat run_4.aseprite": {
       "frame": {
-        "x": 1088,
+        "x": 1000,
         "y": 0,
-        "w": 68,
-        "h": 68
+        "w": 50,
+        "h": 35
       },
       "rotated": false,
       "trimmed": false,
       "spriteSourceSize": {
         "x": 0,
         "y": 0,
-        "w": 68,
-        "h": 68
+        "w": 50,
+        "h": 35
       },
       "sourceSize": {
-        "w": 68,
-        "h": 68
+        "w": 50,
+        "h": 35
       },
       "duration": 100
     },
     "cat run_5.aseprite": {
       "frame": {
-        "x": 1156,
+        "x": 1050,
         "y": 0,
-        "w": 68,
-        "h": 68
+        "w": 50,
+        "h": 35
       },
       "rotated": false,
       "trimmed": false,
       "spriteSourceSize": {
         "x": 0,
         "y": 0,
-        "w": 68,
-        "h": 68
+        "w": 50,
+        "h": 35
       },
       "sourceSize": {
-        "w": 68,
-        "h": 68
+        "w": 50,
+        "h": 35
       },
       "duration": 100
     },
     "cat run_6.aseprite": {
       "frame": {
-        "x": 1224,
+        "x": 1100,
         "y": 0,
-        "w": 68,
-        "h": 68
+        "w": 50,
+        "h": 35
       },
       "rotated": false,
       "trimmed": false,
       "spriteSourceSize": {
         "x": 0,
         "y": 0,
-        "w": 68,
-        "h": 68
+        "w": 50,
+        "h": 35
       },
       "sourceSize": {
-        "w": 68,
-        "h": 68
+        "w": 50,
+        "h": 35
       },
       "duration": 100
     },
     "cat run_7.aseprite": {
       "frame": {
-        "x": 1292,
+        "x": 1150,
         "y": 0,
-        "w": 68,
-        "h": 68
+        "w": 50,
+        "h": 35
       },
       "rotated": false,
       "trimmed": false,
       "spriteSourceSize": {
         "x": 0,
         "y": 0,
-        "w": 68,
-        "h": 68
+        "w": 50,
+        "h": 35
       },
       "sourceSize": {
-        "w": 68,
-        "h": 68
+        "w": 50,
+        "h": 35
       },
       "duration": 100
     },
     "cat lie_0.aseprite": {
       "frame": {
-        "x": 1360,
+        "x": 1200,
         "y": 0,
-        "w": 68,
-        "h": 68
+        "w": 50,
+        "h": 35
       },
       "rotated": false,
       "trimmed": false,
       "spriteSourceSize": {
         "x": 0,
         "y": 0,
-        "w": 68,
-        "h": 68
+        "w": 50,
+        "h": 35
       },
       "sourceSize": {
-        "w": 68,
-        "h": 68
+        "w": 50,
+        "h": 35
       },
       "duration": 100
     },
     "cat lie_1.aseprite": {
       "frame": {
-        "x": 1428,
+        "x": 1250,
         "y": 0,
-        "w": 68,
-        "h": 68
+        "w": 50,
+        "h": 35
       },
       "rotated": false,
       "trimmed": false,
       "spriteSourceSize": {
         "x": 0,
         "y": 0,
-        "w": 68,
-        "h": 68
+        "w": 50,
+        "h": 35
       },
       "sourceSize": {
-        "w": 68,
-        "h": 68
+        "w": 50,
+        "h": 35
       },
       "duration": 100
     },
     "cat lie_2.aseprite": {
       "frame": {
-        "x": 1496,
+        "x": 1300,
         "y": 0,
-        "w": 68,
-        "h": 68
+        "w": 50,
+        "h": 35
       },
       "rotated": false,
       "trimmed": false,
       "spriteSourceSize": {
         "x": 0,
         "y": 0,
-        "w": 68,
-        "h": 68
+        "w": 50,
+        "h": 35
       },
       "sourceSize": {
-        "w": 68,
-        "h": 68
+        "w": 50,
+        "h": 35
       },
       "duration": 100
     },
     "cat lie_3.aseprite": {
       "frame": {
-        "x": 1564,
+        "x": 1350,
         "y": 0,
-        "w": 68,
-        "h": 68
+        "w": 50,
+        "h": 35
       },
       "rotated": false,
       "trimmed": false,
       "spriteSourceSize": {
         "x": 0,
         "y": 0,
-        "w": 68,
-        "h": 68
+        "w": 50,
+        "h": 35
       },
       "sourceSize": {
-        "w": 68,
-        "h": 68
+        "w": 50,
+        "h": 35
       },
       "duration": 100
     },
     "cat lie_4.aseprite": {
       "frame": {
-        "x": 1632,
+        "x": 1400,
         "y": 0,
-        "w": 68,
-        "h": 68
+        "w": 50,
+        "h": 35
       },
       "rotated": false,
       "trimmed": false,
       "spriteSourceSize": {
         "x": 0,
         "y": 0,
-        "w": 68,
-        "h": 68
+        "w": 50,
+        "h": 35
       },
       "sourceSize": {
-        "w": 68,
-        "h": 68
+        "w": 50,
+        "h": 35
       },
       "duration": 100
     },
     "cat lie_5.aseprite": {
       "frame": {
-        "x": 1700,
+        "x": 1450,
         "y": 0,
-        "w": 68,
-        "h": 68
+        "w": 50,
+        "h": 35
       },
       "rotated": false,
       "trimmed": false,
       "spriteSourceSize": {
         "x": 0,
         "y": 0,
-        "w": 68,
-        "h": 68
+        "w": 50,
+        "h": 35
       },
       "sourceSize": {
-        "w": 68,
-        "h": 68
+        "w": 50,
+        "h": 35
       },
       "duration": 100
     },
     "cat lie_6.aseprite": {
       "frame": {
-        "x": 1768,
+        "x": 1500,
         "y": 0,
-        "w": 68,
-        "h": 68
+        "w": 50,
+        "h": 35
       },
       "rotated": false,
       "trimmed": false,
       "spriteSourceSize": {
         "x": 0,
         "y": 0,
-        "w": 68,
-        "h": 68
+        "w": 50,
+        "h": 35
       },
       "sourceSize": {
-        "w": 68,
-        "h": 68
+        "w": 50,
+        "h": 35
       },
       "duration": 100
     },
     "cat lie_7.aseprite": {
       "frame": {
-        "x": 1836,
+        "x": 1550,
         "y": 0,
-        "w": 68,
-        "h": 68
+        "w": 50,
+        "h": 35
       },
       "rotated": false,
       "trimmed": false,
       "spriteSourceSize": {
         "x": 0,
         "y": 0,
-        "w": 68,
-        "h": 68
+        "w": 50,
+        "h": 35
       },
       "sourceSize": {
-        "w": 68,
-        "h": 68
+        "w": 50,
+        "h": 35
       },
       "duration": 100
     },
     "cat lie_8.aseprite": {
       "frame": {
-        "x": 1904,
+        "x": 1600,
         "y": 0,
-        "w": 68,
-        "h": 68
+        "w": 50,
+        "h": 35
       },
       "rotated": false,
       "trimmed": false,
       "spriteSourceSize": {
         "x": 0,
         "y": 0,
-        "w": 68,
-        "h": 68
+        "w": 50,
+        "h": 35
       },
       "sourceSize": {
-        "w": 68,
-        "h": 68
+        "w": 50,
+        "h": 35
       },
       "duration": 100
     },
     "cat lie_9.aseprite": {
       "frame": {
-        "x": 1972,
+        "x": 1650,
         "y": 0,
-        "w": 68,
-        "h": 68
+        "w": 50,
+        "h": 35
       },
       "rotated": false,
       "trimmed": false,
       "spriteSourceSize": {
         "x": 0,
         "y": 0,
-        "w": 68,
-        "h": 68
+        "w": 50,
+        "h": 35
       },
       "sourceSize": {
-        "w": 68,
-        "h": 68
+        "w": 50,
+        "h": 35
+      },
+      "duration": 100
+    },
+    "cat sit_0.aseprite": {
+      "frame": {
+        "x": 1700,
+        "y": 0,
+        "w": 50,
+        "h": 35
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 50,
+        "h": 35
+      },
+      "sourceSize": {
+        "w": 50,
+        "h": 35
+      },
+      "duration": 100
+    },
+    "cat sit_1.aseprite": {
+      "frame": {
+        "x": 1750,
+        "y": 0,
+        "w": 50,
+        "h": 35
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 50,
+        "h": 35
+      },
+      "sourceSize": {
+        "w": 50,
+        "h": 35
+      },
+      "duration": 100
+    },
+    "cat sit_2.aseprite": {
+      "frame": {
+        "x": 1800,
+        "y": 0,
+        "w": 50,
+        "h": 35
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 50,
+        "h": 35
+      },
+      "sourceSize": {
+        "w": 50,
+        "h": 35
+      },
+      "duration": 100
+    },
+    "cat sit_3.aseprite": {
+      "frame": {
+        "x": 1850,
+        "y": 0,
+        "w": 50,
+        "h": 35
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 50,
+        "h": 35
+      },
+      "sourceSize": {
+        "w": 50,
+        "h": 35
+      },
+      "duration": 100
+    },
+    "cat sit_4.aseprite": {
+      "frame": {
+        "x": 1900,
+        "y": 0,
+        "w": 50,
+        "h": 35
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 50,
+        "h": 35
+      },
+      "sourceSize": {
+        "w": 50,
+        "h": 35
+      },
+      "duration": 100
+    },
+    "cat sit_5.aseprite": {
+      "frame": {
+        "x": 1950,
+        "y": 0,
+        "w": 50,
+        "h": 35
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 50,
+        "h": 35
+      },
+      "sourceSize": {
+        "w": 50,
+        "h": 35
+      },
+      "duration": 100
+    },
+    "cat sit_6.aseprite": {
+      "frame": {
+        "x": 2000,
+        "y": 0,
+        "w": 50,
+        "h": 35
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 50,
+        "h": 35
+      },
+      "sourceSize": {
+        "w": 50,
+        "h": 35
+      },
+      "duration": 100
+    },
+    "cat sit_7.aseprite": {
+      "frame": {
+        "x": 2050,
+        "y": 0,
+        "w": 50,
+        "h": 35
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 50,
+        "h": 35
+      },
+      "sourceSize": {
+        "w": 50,
+        "h": 35
       },
       "duration": 100
     }
   },
   "meta": {
-    "app": "petproj build_cat_sheet.py",
-    "version": "1",
+    "app": "petproj rebuild_cat_sheet.py",
+    "version": "2",
     "image": "cat.png",
     "format": "RGBA8888",
     "size": {
-      "w": 2040,
-      "h": 68
+      "w": 2100,
+      "h": 35
     },
     "scale": "1",
     "frameTags": [
@@ -651,19 +903,25 @@
       {
         "name": "walk",
         "from": 8,
-        "to": 11,
+        "to": 15,
         "direction": "forward"
       },
       {
         "name": "run",
-        "from": 12,
-        "to": 19,
+        "from": 16,
+        "to": 23,
         "direction": "forward"
       },
       {
         "name": "lie",
-        "from": 20,
-        "to": 29,
+        "from": 24,
+        "to": 33,
+        "direction": "pingpong"
+      },
+      {
+        "name": "sit",
+        "from": 34,
+        "to": 41,
         "direction": "pingpong"
       }
     ],
@@ -674,6 +932,6 @@
         "blendMode": "normal"
       }
     ],
-    "_notes": "Generated from PixelLab character 70291340-ea9f-4598-8fea-24396034f439. East direction frames stitched horizontally; west is mirrored at runtime."
+    "_notes": "Auto-trimmed per-animation by union bbox; padded to common (50x35) with cat bottom-aligned in every frame. Built from PixelLab character 70291340-ea9f-4598-8fea-24396034f439."
   }
 }

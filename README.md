@@ -112,9 +112,9 @@ petproj-mvp/
 │   │   ├── chair.{png,json}
 │   │   ├── laptop.{png,json}
 │   │   └── icon.{png,json}    tray icon (the person's head)
-│   └── cat/             cat actor assets
-│       ├── gptcat.png   AI-generated 8-frame sprite sheet
-│       └── gptcat.json  frame coords + animation tags (stand/lie/walk/run)
+│   └── cat/             cat actor assets (PixelLab-generated)
+│       ├── cat.png      42-frame sprite sheet (50×35 native)
+│       └── cat.json     frame coords + tags (stand, walk, run, lie, sit)
 ├── requirements.txt
 └── README.md
 ```
@@ -165,9 +165,8 @@ will overwrite your work with the ASCII version. Use specific targets only.
 
 ## Roadmap / open ideas
 
-- Add a cat as a second actor; coexists with the person, occasionally interrupts.
-- Multi-character scenarios (the typing/cat-mischief story from `taskV0/idea.md`
-  if that ever lands here).
+- Multi-character interactions (the typing/cat-mischief story from
+  `taskV0/idea.md`) — currently person and cat run independently.
 - Migration between monitors via internal edges (currently only external edges
   are used).
 - Hover/click interaction with the character (cursor as a "petting" affordance).
@@ -176,4 +175,4 @@ will overwrite your work with the ASCII version. Use specific targets only.
 ## License
 
 MIT — do whatever you want with it. The pixel art was generated procedurally
-and lives under the same terms.
+or via PixelLab; the project itself lives under the same terms.

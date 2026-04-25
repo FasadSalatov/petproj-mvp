@@ -29,8 +29,6 @@ from spritesheet import SpriteSheet
 
 ASSETS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets")
 
-CAT_WALK_SPEED_PX = 2       # cats walk lazily
-CAT_RUN_SPEED_PX = 8        # but bolt fast when fleeing
 WALK_FRAME_HOLD = 6         # ticks per walk frame
 RUN_FRAME_HOLD = 3          # ticks per run frame
 LIE_FRAME_HOLD = 8          # ticks per lying frame (slow breathing)
@@ -125,13 +123,22 @@ class CatScene(QObject):
             idx = (self.frame_idx // RUN_FRAME_HOLD) % len(frames)
         self.cat.set_pixmap(frames[idx])
         if self.state != State.OFFSTAGE:
-            self.cat.move_to(self.x, self.lane.ground_y)
+            self.cat.move_to(int(self.x), self._ground_y())
 
     def _user_active(self) -> bool:
+        if self.config.debug_always_on:
+            return False
         return seconds_since_last_input() < 1.5
 
     def _user_idle_long_enough(self) -> bool:
+        if self.config.debug_always_on:
+            return True
         return seconds_since_last_input() >= self.config.idle_threshold_s
+
+    def _ground_y(self) -> int:
+        """Where the cat's feet should sit, including the configurable
+        y-offset for compensating PixelLab canvas padding."""
+        return self.lane.ground_y + self.config.cat_y_offset_px
 
     def _set_state(self, s: State) -> None:
         self.state = s
@@ -143,7 +150,7 @@ class CatScene(QObject):
         return self.lane.full.right() + EXIT_BUFFER_PX
 
     def _exit_target_x(self, side: str) -> int:
-        overshoot = CAT_RUN_SPEED_PX * 4
+        overshoot = int(self.config.cat_run_speed_px * 4)
         if side == "left":
             return self.lane.full.left() - self.cat.width() - EXIT_BUFFER_PX - overshoot
         return self.lane.full.right() + EXIT_BUFFER_PX + overshoot
@@ -199,7 +206,7 @@ class CatScene(QObject):
         self.frame_idx = 0
         frames = self._walk_left if self.facing_left else self._walk_right
         self.cat.set_pixmap(frames[0])
-        self.cat.move_to(self.x, self.lane.ground_y)
+        self.cat.move_to(int(self.x), self._ground_y())
         self.cat.show()
         self._set_state(State.WALKING)
 
@@ -209,7 +216,8 @@ class CatScene(QObject):
             self._begin_lie()
             return
 
-        step = -CAT_WALK_SPEED_PX if self.facing_left else CAT_WALK_SPEED_PX
+        speed = self.config.cat_walk_speed_px
+        step = -speed if self.facing_left else speed
         self.x += step
         self._draw_walk()
         if (not self.facing_left and self.x >= self.target_x) or (
@@ -222,14 +230,14 @@ class CatScene(QObject):
         self.frame_idx = (self.frame_idx + 1) % (len(frames) * WALK_FRAME_HOLD)
         idx = (self.frame_idx // WALK_FRAME_HOLD) % len(frames)
         self.cat.set_pixmap(frames[idx])
-        self.cat.move_to(self.x, self.lane.ground_y)
+        self.cat.move_to(int(self.x), self._ground_y())
 
     def _begin_lie(self) -> None:
         self.lie_ticks_left = LIE_DURATION_TICKS
         self.frame_idx = 0
         frames = self._lie_left if self.facing_left else self._lie_right
         self.cat.set_pixmap(frames[0])
-        self.cat.move_to(self.x, self.lane.ground_y)
+        self.cat.move_to(int(self.x), self._ground_y())
         self._set_state(State.LYING)
 
     def _tick_lie(self) -> None:
@@ -239,7 +247,7 @@ class CatScene(QObject):
         self.frame_idx = (self.frame_idx + 1) % (len(frames) * LIE_FRAME_HOLD)
         idx = (self.frame_idx // LIE_FRAME_HOLD) % len(frames)
         self.cat.set_pixmap(frames[idx])
-        self.cat.move_to(self.x, self.lane.ground_y)
+        self.cat.move_to(int(self.x), self._ground_y())
         if self.lie_ticks_left <= 0:
             self._set_state(State.WALKING)
 
@@ -251,13 +259,14 @@ class CatScene(QObject):
         self._set_state(State.FLEEING)
 
     def _tick_flee(self) -> None:
-        step = -CAT_RUN_SPEED_PX if self.facing_left else CAT_RUN_SPEED_PX
+        speed = self.config.cat_run_speed_px
+        step = -speed if self.facing_left else speed
         self.x += step
         frames = self._run_left if self.facing_left else self._run_right
         self.frame_idx = (self.frame_idx + 1) % (len(frames) * RUN_FRAME_HOLD)
         idx = (self.frame_idx // RUN_FRAME_HOLD) % len(frames)
         self.cat.set_pixmap(frames[idx])
-        self.cat.move_to(self.x, self.lane.ground_y)
+        self.cat.move_to(int(self.x), self._ground_y())
         if self._is_offscreen_for_lane():
             self._exit_now()
 

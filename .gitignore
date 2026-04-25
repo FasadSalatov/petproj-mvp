@@ -25,6 +25,9 @@ desktop.ini
 # Sprite export backups (created automatically before overwriting)
 assets/**/*.bak.*
 
+# PixelLab raw ZIP extraction workspace (regenerated when re-importing)
+assets/cat/_pixellab_zip/
+
 # Generated previews (regen with `python preview_sprites.py`)
 preview/
 
