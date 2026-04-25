@@ -100,12 +100,13 @@ petproj-mvp/
 ├── export_sprites.py    CLI: ASCII → PNG sprite sheets (selective per actor)
 ├── preview_sprites.py   render all sprites to ./preview/ at 10× zoom for review
 ├── assets/              the actual game art the runtime loads
-│   ├── person.png       7 frames: walk_a, walk_pass, walk_b, walk_pass2, stand, sit, sit_type
-│   ├── person.json      Aseprite-compatible frame metadata + animation tags
-│   ├── table.png/json
-│   ├── laptop.png/json
-│   ├── chair.png/json
-│   └── icon.png/json    tray icon
+│   ├── person/          7 frames: walk_a/pass/b/pass2/stand/sit/sit_type
+│   │   ├── person.png   sprite sheet (frames laid out horizontally)
+│   │   └── person.json  Aseprite-compatible frame metadata + animation tags
+│   ├── table/
+│   ├── laptop/
+│   ├── chair/
+│   └── icon/            tray icon
 ├── requirements.txt
 └── README.md
 ```
@@ -126,8 +127,8 @@ python export_sprites.py --all        # everything (overwrites hand edits!)
 The script **always backs up** existing files as `<name>.png.bak.<timestamp>`
 before overwriting. So a wrong target is recoverable by renaming the latest backup.
 
-**By painting PNGs directly** — open `assets/person.png` (or any other) in
-Aseprite, LibreSprite, Piskel, Pixilart, or any pixel-art editor. The app
+**By painting PNGs directly** — open `assets/person/person.png` (or any
+other) in Aseprite, LibreSprite, Piskel, Pixilart, or any pixel-art editor. The app
 re-loads them on next launch. The JSON sidecar describes frame coordinates +
 animation tags in Aseprite's standard sprite-sheet export format, so any tool
 that exports that format will plug in without changes.

@@ -23,7 +23,7 @@ Thumbs.db
 desktop.ini
 
 # Sprite export backups (created automatically before overwriting)
-assets/*.bak.*
+assets/**/*.bak.*
 
 # Generated previews (regen with `python preview_sprites.py`)
 preview/

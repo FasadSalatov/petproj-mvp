@@ -97,8 +97,8 @@ def _backup(path: str) -> None:
     print(f"  backup: {os.path.basename(path)} -> {os.path.basename(bak)}")
 
 
-def export_actor(actor_name, ordered_frames, tags, out_dir):
-    """Write <actor>.png + <actor>.json into out_dir.
+def export_actor(actor_name, ordered_frames, tags, assets_dir):
+    """Write assets_dir/<actor>/<actor>.{png,json}.
 
     `ordered_frames`: list of (frame_name, ascii_grid)
     `tags`: list of {name, from, to, direction} for animation tags
@@ -115,8 +115,10 @@ def export_actor(actor_name, ordered_frames, tags, out_dir):
                 f"frame {actor_name}/{n} has dim {w}x{h}, expected {fw}x{fh}"
             )
 
-    png_path = os.path.join(out_dir, f"{actor_name}.png")
-    json_path = os.path.join(out_dir, f"{actor_name}.json")
+    actor_dir = os.path.join(assets_dir, actor_name)
+    os.makedirs(actor_dir, exist_ok=True)
+    png_path = os.path.join(actor_dir, f"{actor_name}.png")
+    json_path = os.path.join(actor_dir, f"{actor_name}.json")
     _backup(png_path)
     _backup(json_path)
 

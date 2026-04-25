@@ -16,7 +16,7 @@ from spritesheet import SpriteSheet
 
 
 def _build_tray_icon() -> QIcon:
-    sheet = SpriteSheet.load(os.path.join(ASSETS_DIR, "icon"))
+    sheet = SpriteSheet.load(os.path.join(ASSETS_DIR, "icon", "icon"))
     pix = sheet.frame(0, scale=2)
     pix = pix.scaled(QSize(32, 32), Qt.AspectRatioMode.KeepAspectRatio,
                      Qt.TransformationMode.FastTransformation)

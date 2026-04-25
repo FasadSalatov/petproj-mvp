@@ -111,12 +111,12 @@ class Scene(QObject):
         self.lanes = self._select_active_lanes()
         self.lane: Lane = self.lanes[0]
 
-        # Load all art from PNG sheets in assets/. Edit those files in any
-        # pixel-art editor and the new art is picked up on next start.
-        person_sheet = SpriteSheet.load(os.path.join(ASSETS_DIR, "person"))
-        table_sheet = SpriteSheet.load(os.path.join(ASSETS_DIR, "table"))
-        laptop_sheet = SpriteSheet.load(os.path.join(ASSETS_DIR, "laptop"))
-        chair_sheet = SpriteSheet.load(os.path.join(ASSETS_DIR, "chair"))
+        # Load all art from PNG sheets in assets/<actor>/<actor>.{png,json}.
+        # Edit those files in any pixel-art editor — they're picked up on next start.
+        person_sheet = SpriteSheet.load(os.path.join(ASSETS_DIR, "person", "person"))
+        table_sheet = SpriteSheet.load(os.path.join(ASSETS_DIR, "table", "table"))
+        laptop_sheet = SpriteSheet.load(os.path.join(ASSETS_DIR, "laptop", "laptop"))
+        chair_sheet = SpriteSheet.load(os.path.join(ASSETS_DIR, "chair", "chair"))
 
         # Pre-render the frames we need in both facings.
         self._walk_right = person_sheet.animation("walk", scale=SCALE)
