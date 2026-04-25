@@ -111,12 +111,13 @@ class Scene(QObject):
         self.lanes = self._select_active_lanes()
         self.lane: Lane = self.lanes[0]
 
-        # Load all art from PNG sheets in assets/<actor>/<actor>.{png,json}.
-        # Edit those files in any pixel-art editor — they're picked up on next start.
-        person_sheet = SpriteSheet.load(os.path.join(ASSETS_DIR, "person", "person"))
-        table_sheet = SpriteSheet.load(os.path.join(ASSETS_DIR, "table", "table"))
-        laptop_sheet = SpriteSheet.load(os.path.join(ASSETS_DIR, "laptop", "laptop"))
-        chair_sheet = SpriteSheet.load(os.path.join(ASSETS_DIR, "chair", "chair"))
+        # All person-related assets live in assets/person/<name>.{png,json}.
+        # Edit those PNGs in any pixel-art editor — picked up on next start.
+        person_dir = os.path.join(ASSETS_DIR, "person")
+        person_sheet = SpriteSheet.load(os.path.join(person_dir, "person"))
+        table_sheet = SpriteSheet.load(os.path.join(person_dir, "table"))
+        laptop_sheet = SpriteSheet.load(os.path.join(person_dir, "laptop"))
+        chair_sheet = SpriteSheet.load(os.path.join(person_dir, "chair"))
 
         # Pre-render the frames we need in both facings.
         self._walk_right = person_sheet.animation("walk", scale=SCALE)
@@ -256,6 +257,12 @@ class Scene(QObject):
     # ---- main tick -----------------------------------------------------
 
     def _tick(self) -> None:
+        # Disabled actor: ensure nothing visible on screen, then bail.
+        if not self.config.actor_enabled("person"):
+            if self.state != State.OFFSTAGE:
+                self._exit()
+            return
+
         if self.state == State.OFFSTAGE:
             if self._user_idle_long_enough():
                 self._enter()

@@ -100,18 +100,22 @@ class SpriteSheet:
 
     # ---- access ---------------------------------------------------------
 
-    def frame(self, idx: int, scale: int = 1, mirror: bool = False) -> QPixmap:
+    def frame(self, idx: int, scale: float = 1, mirror: bool = False) -> QPixmap:
         """Extract a single frame by index, scaled (nearest-neighbour) and
-        optionally horizontally mirrored. Cached for repeated calls."""
+        optionally horizontally mirrored. Cached for repeated calls.
+
+        `scale` may be float — useful for downsizing oversized AI-generated
+        sprites to match the project's display size."""
         cache_key = (idx, scale, mirror)
         if cache_key in self._scaled_cache:
             return self._scaled_cache[cache_key]
         info = self.frames[idx]
         sub = self.atlas.copy(info.rect)
         if scale != 1:
+            target_w = max(1, int(round(info.rect.width() * scale)))
+            target_h = max(1, int(round(info.rect.height() * scale)))
             sub = sub.scaled(
-                info.rect.width() * scale,
-                info.rect.height() * scale,
+                target_w, target_h,
                 Qt.AspectRatioMode.IgnoreAspectRatio,
                 Qt.TransformationMode.FastTransformation,
             )

@@ -1,15 +1,20 @@
 """Persistent user-editable settings for the MVP.
 
 Loaded at startup from `config.json` next to main.py. Sane defaults if the
-file is missing or has stale keys. Saved back when the tray toggles a value.
+file is missing or has stale keys. Saved back when the Config window
+or tray actions change a value.
 """
 from __future__ import annotations
 
 import json
 import os
-from dataclasses import asdict, dataclass, fields
+from dataclasses import asdict, dataclass, field, fields
 
 CONFIG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config.json")
+
+
+def _default_actors() -> dict:
+    return {"person": True, "cat": False}
 
 
 @dataclass
@@ -17,13 +22,17 @@ class Config:
     # Idle seconds before the scene starts.
     idle_threshold_s: float = 5.0
 
-    # If True, scenes can spawn on any monitor. If False, only on the screen
-    # whose Qt index matches `primary_screen_index`.
+    # If True, scenes can spawn on any monitor. If False, only on
+    # primary_screen_index.
     multi_monitor: bool = True
 
     # Which screen to use when multi-monitor is disabled. 0 = first screen
     # reported by Qt (typically the primary). If out of range, falls back to 0.
     primary_screen_index: int = 0
+
+    # Enable/disable each animated object independently.
+    # Keys must match the actor names the runtime knows about.
+    actors: dict = field(default_factory=_default_actors)
 
     @classmethod
     def load(cls) -> "Config":
@@ -35,7 +44,12 @@ class Config:
         except (OSError, json.JSONDecodeError):
             return cls()
         known = {f.name for f in fields(cls)}
-        return cls(**{k: v for k, v in raw.items() if k in known})
+        kwargs = {k: v for k, v in raw.items() if k in known}
+        # Merge actor flags with defaults so newly-added actors get a default.
+        actors = dict(_default_actors())
+        actors.update(kwargs.get("actors") or {})
+        kwargs["actors"] = actors
+        return cls(**kwargs)
 
     def save(self) -> None:
         try:
@@ -43,3 +57,6 @@ class Config:
                 json.dump(asdict(self), f, indent=2)
         except OSError as e:
             print(f"[config] failed to save: {e}", flush=True)
+
+    def actor_enabled(self, name: str) -> bool:
+        return bool(self.actors.get(name, False))

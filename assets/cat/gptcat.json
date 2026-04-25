@@ -1,0 +1,76 @@
+{
+  "frames": {
+    "gptcat stand.aseprite": {
+      "frame": {"x": 0, "y": 440, "w": 154, "h": 120},
+      "rotated": false, "trimmed": false,
+      "spriteSourceSize": {"x": 0, "y": 0, "w": 154, "h": 120},
+      "sourceSize": {"w": 154, "h": 120},
+      "duration": 200
+    },
+    "gptcat lie.aseprite": {
+      "frame": {"x": 154, "y": 440, "w": 154, "h": 120},
+      "rotated": false, "trimmed": false,
+      "spriteSourceSize": {"x": 0, "y": 0, "w": 154, "h": 120},
+      "sourceSize": {"w": 154, "h": 120},
+      "duration": 200
+    },
+    "gptcat walk_a.aseprite": {
+      "frame": {"x": 308, "y": 440, "w": 154, "h": 120},
+      "rotated": false, "trimmed": false,
+      "spriteSourceSize": {"x": 0, "y": 0, "w": 154, "h": 120},
+      "sourceSize": {"w": 154, "h": 120},
+      "duration": 130
+    },
+    "gptcat walk_b.aseprite": {
+      "frame": {"x": 462, "y": 440, "w": 154, "h": 120},
+      "rotated": false, "trimmed": false,
+      "spriteSourceSize": {"x": 0, "y": 0, "w": 154, "h": 120},
+      "sourceSize": {"w": 154, "h": 120},
+      "duration": 130
+    },
+    "gptcat walk_c.aseprite": {
+      "frame": {"x": 616, "y": 440, "w": 154, "h": 120},
+      "rotated": false, "trimmed": false,
+      "spriteSourceSize": {"x": 0, "y": 0, "w": 154, "h": 120},
+      "sourceSize": {"w": 154, "h": 120},
+      "duration": 130
+    },
+    "gptcat walk_d.aseprite": {
+      "frame": {"x": 770, "y": 440, "w": 154, "h": 120},
+      "rotated": false, "trimmed": false,
+      "spriteSourceSize": {"x": 0, "y": 0, "w": 154, "h": 120},
+      "sourceSize": {"w": 154, "h": 120},
+      "duration": 130
+    },
+    "gptcat run_a.aseprite": {
+      "frame": {"x": 924, "y": 440, "w": 306, "h": 120},
+      "rotated": false, "trimmed": false,
+      "spriteSourceSize": {"x": 0, "y": 0, "w": 306, "h": 120},
+      "sourceSize": {"w": 306, "h": 120},
+      "duration": 80
+    },
+    "gptcat run_b.aseprite": {
+      "frame": {"x": 1230, "y": 440, "w": 306, "h": 120},
+      "rotated": false, "trimmed": false,
+      "spriteSourceSize": {"x": 0, "y": 0, "w": 306, "h": 120},
+      "sourceSize": {"w": 306, "h": 120},
+      "duration": 80
+    }
+  },
+  "meta": {
+    "app": "petproj manual export",
+    "version": "1",
+    "image": "gptcat.png",
+    "format": "RGBA8888",
+    "size": {"w": 1536, "h": 1024},
+    "scale": "1",
+    "frameTags": [
+      {"name": "stand", "from": 0, "to": 0, "direction": "forward"},
+      {"name": "lie",   "from": 1, "to": 1, "direction": "forward"},
+      {"name": "walk",  "from": 2, "to": 5, "direction": "forward"},
+      {"name": "run",   "from": 6, "to": 7, "direction": "pingpong"}
+    ],
+    "layers": [{"name": "main", "opacity": 255, "blendMode": "normal"}],
+    "_notes": "Frame coords are approximate — DALL-E doesn't align frames precisely on a grid. Open gptcat.png in Aseprite/LibreSprite to refine: each cat may need a few pixels of x offset adjustment. Last two frames (run_a, run_b) are wider because the cat is stretched in those poses."
+  }
+}

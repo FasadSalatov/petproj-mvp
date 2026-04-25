@@ -37,12 +37,11 @@ walk in from the edge of one of your screens.
 
 A system-tray icon (bottom-right of the taskbar, the little pixel head) provides:
 
-- **Pause** — temporarily stops the scene. Toggle off to resume.
-- **Multi-monitor** — when on, the scene can spawn on any screen randomly. When
-  off, only on `primary_screen_index` from `config.json`.
+- **Config** — open the settings window. Idle threshold, multi-monitor,
+  primary screen, and per-actor toggles all live there.
 - **Quit** — close the app cleanly.
 
-Double-click the tray icon as a shortcut for Pause/Resume.
+Double-click the tray icon as a shortcut for opening Config.
 
 ## Running on Windows startup (autostart)
 
@@ -74,7 +73,11 @@ hand). Defaults are sane; missing/unknown keys are ignored.
 {
   "idle_threshold_s": 5.0,
   "multi_monitor": true,
-  "primary_screen_index": 0
+  "primary_screen_index": 0,
+  "actors": {
+    "person": true,
+    "cat": false
+  }
 }
 ```
 
@@ -83,30 +86,35 @@ hand). Defaults are sane; missing/unknown keys are ignored.
 | `idle_threshold_s` | Seconds of idle before the scene starts. |
 | `multi_monitor` | If `true`, scenes can spawn on any monitor. |
 | `primary_screen_index` | Which screen to use when `multi_monitor` is `false`. `0` = first screen reported by Qt (typically the primary). |
+| `actors.<name>` | `true` = this actor is allowed to appear; `false` = stays offstage. Currently `person` and `cat`. |
 
-The Multi-monitor tray toggle writes back to `config.json` automatically.
+The Config window writes back to `config.json` immediately on every change.
 
 ## Project structure
 
 ```
 petproj-mvp/
-├── main.py              entry point — builds Qt app, scene, tray
-├── scene.py             scene state machine + multi-monitor lane logic
+├── main.py              entry point — builds Qt app, scenes, tray
+├── scene.py             person scene state machine + multi-monitor lane logic
+├── cat_scene.py         cat scene (walks across, lies, runs away when active)
 ├── character.py         transparent always-on-top SpriteWidget
 ├── idle_detector.py     Win32 GetLastInputInfo via ctypes
 ├── config.py            persistent settings (loaded from config.json)
+├── config_window.py     Config QDialog opened from the tray menu
 ├── spritesheet.py       loads PNG + JSON (Aseprite format) into QPixmap frames
 ├── sprites.py           ASCII grid sprite definitions (used to bootstrap PNGs)
 ├── export_sprites.py    CLI: ASCII → PNG sprite sheets (selective per actor)
 ├── preview_sprites.py   render all sprites to ./preview/ at 10× zoom for review
 ├── assets/              the actual game art the runtime loads
-│   ├── person/          7 frames: walk_a/pass/b/pass2/stand/sit/sit_type
-│   │   ├── person.png   sprite sheet (frames laid out horizontally)
-│   │   └── person.json  Aseprite-compatible frame metadata + animation tags
-│   ├── table/
-│   ├── laptop/
-│   ├── chair/
-│   └── icon/            tray icon
+│   ├── person/          all assets owned by the person actor
+│   │   ├── person.{png,json}  character sprite + 7 frame metadata
+│   │   ├── table.{png,json}
+│   │   ├── chair.{png,json}
+│   │   ├── laptop.{png,json}
+│   │   └── icon.{png,json}    tray icon (the person's head)
+│   └── cat/             cat actor assets
+│       ├── gptcat.png   AI-generated 8-frame sprite sheet
+│       └── gptcat.json  frame coords + animation tags (stand/lie/walk/run)
 ├── requirements.txt
 └── README.md
 ```
@@ -128,7 +136,8 @@ The script **always backs up** existing files as `<name>.png.bak.<timestamp>`
 before overwriting. So a wrong target is recoverable by renaming the latest backup.
 
 **By painting PNGs directly** — open `assets/person/person.png` (or any
-other) in Aseprite, LibreSprite, Piskel, Pixilart, or any pixel-art editor. The app
+other PNG under `assets/`) in Aseprite, LibreSprite, Piskel, Pixilart, or
+any pixel-art editor. The app
 re-loads them on next launch. The JSON sidecar describes frame coordinates +
 animation tags in Aseprite's standard sprite-sheet export format, so any tool
 that exports that format will plug in without changes.

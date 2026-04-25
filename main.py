@@ -1,7 +1,8 @@
 """Entry point for the petproj MVP.
 
-Launches a transparent always-on-top scene that triggers on user idle.
-A system-tray icon provides Pause / Quit control.
+Launches all configured actors (person, cat, ...) — each one a transparent
+always-on-top scene that triggers on user idle. The system-tray icon
+exposes a Config window and a Quit action.
 """
 import os
 import sys
@@ -10,13 +11,15 @@ from PyQt6.QtCore import QSize, Qt
 from PyQt6.QtGui import QIcon
 from PyQt6.QtWidgets import QApplication, QMenu, QSystemTrayIcon
 
+from cat_scene import CatScene
 from config import Config
+from config_window import ConfigWindow
 from scene import ASSETS_DIR, Scene
 from spritesheet import SpriteSheet
 
 
 def _build_tray_icon() -> QIcon:
-    sheet = SpriteSheet.load(os.path.join(ASSETS_DIR, "icon", "icon"))
+    sheet = SpriteSheet.load(os.path.join(ASSETS_DIR, "person", "icon"))
     pix = sheet.frame(0, scale=2)
     pix = pix.scaled(QSize(32, 32), Qt.AspectRatioMode.KeepAspectRatio,
                      Qt.TransformationMode.FastTransformation)
@@ -24,26 +27,24 @@ def _build_tray_icon() -> QIcon:
 
 
 class TrayController:
-    def __init__(self, app: QApplication, scene: Scene) -> None:
+    def __init__(
+        self, app: QApplication, config: Config,
+        person_scene: Scene, cat_scene: CatScene,
+    ) -> None:
         self.app = app
-        self.scene = scene
+        self.config = config
+        self.person_scene = person_scene
+        self.cat_scene = cat_scene
+        self._config_window: ConfigWindow | None = None
 
         self.tray = QSystemTrayIcon(_build_tray_icon(), parent=app)
-        self.tray.setToolTip("petproj — desktop pet")
+        self.tray.setToolTip("petproj-mvp")
 
-        # Build the menu — actions belong to the menu so they aren't GC'd.
+        # Tray menu: just Config + Quit (everything else moved into the dialog).
         self.menu = QMenu()
-        self.pause_action = self.menu.addAction("Pause")
-        self.pause_action.setCheckable(True)
-        self.pause_action.toggled.connect(self._on_pause_toggled)
-
-        self.multi_monitor_action = self.menu.addAction("Multi-monitor")
-        self.multi_monitor_action.setCheckable(True)
-        self.multi_monitor_action.setChecked(self.scene.config.multi_monitor)
-        self.multi_monitor_action.toggled.connect(self._on_multi_monitor_toggled)
-
+        self.config_action = self.menu.addAction("Config")
+        self.config_action.triggered.connect(self._open_config_window)
         self.menu.addSeparator()
-
         self.quit_action = self.menu.addAction("Quit")
         self.quit_action.triggered.connect(self._on_quit)
 
@@ -51,30 +52,38 @@ class TrayController:
         self.tray.activated.connect(self._on_activated)
         self.tray.show()
 
-    def _on_multi_monitor_toggled(self, enabled: bool) -> None:
-        self.scene.set_multi_monitor(enabled)
+    def _open_config_window(self) -> None:
+        # Reuse the same window if already open.
+        if self._config_window is not None and self._config_window.isVisible():
+            self._config_window.raise_()
+            self._config_window.activateWindow()
+            return
+        self._config_window = ConfigWindow(self.config, self._on_config_changed)
+        self._config_window.show()
 
-    def _on_pause_toggled(self, paused: bool) -> None:
-        if paused:
-            self.scene.timer.stop()
-            self.scene.person.hide()
-            self.scene._hide_props()
-            self.tray.setToolTip("petproj — paused")
-        else:
-            self.scene.timer.start()
-            self.tray.setToolTip("petproj — desktop pet")
+    def _on_config_changed(self, key: str) -> None:
+        # Forward live updates to scenes that care.
+        if key == "multi_monitor":
+            self.person_scene.set_multi_monitor(self.config.multi_monitor)
+            self.cat_scene.set_multi_monitor(self.config.multi_monitor)
+        # idle_threshold_s and actors.* are read directly from config each tick,
+        # so no extra wiring needed.
 
     def _on_quit(self) -> None:
-        self.scene.timer.stop()
-        self.scene.person.hide()
-        self.scene._hide_props()
+        self.person_scene.timer.stop()
+        self.person_scene.person.hide()
+        self.person_scene._hide_props()
+        self.cat_scene.timer.stop()
+        self.cat_scene.cat.hide()
+        if self._config_window is not None:
+            self._config_window.close()
         self.tray.hide()
         self.app.quit()
 
     def _on_activated(self, reason: QSystemTrayIcon.ActivationReason) -> None:
-        # Double-click toggles pause as a quick shortcut.
+        # Double-click as a quick shortcut to open Config.
         if reason == QSystemTrayIcon.ActivationReason.DoubleClick:
-            self.pause_action.toggle()
+            self._open_config_window()
 
 
 def main() -> int:
@@ -82,11 +91,13 @@ def main() -> int:
     app.setQuitOnLastWindowClosed(False)
 
     config = Config.load()
-    scene = Scene(config)
-    scene.state_changed.connect(lambda s: print(f"[scene] -> {s}", flush=True))
+    person_scene = Scene(config)
+    cat_scene = CatScene(config)
+    person_scene.state_changed.connect(lambda s: print(f"[person] -> {s}", flush=True))
+    cat_scene.state_changed.connect(lambda s: print(f"[cat]    -> {s}", flush=True))
 
     if QSystemTrayIcon.isSystemTrayAvailable():
-        app._tray = TrayController(app, scene)  # type: ignore[attr-defined]
+        app._tray = TrayController(app, config, person_scene, cat_scene)  # type: ignore[attr-defined]
     else:
         print("[main] system tray not available — quit via Ctrl+C in console",
               flush=True)
