@@ -29,7 +29,6 @@ from spritesheet import SpriteSheet
 
 ASSETS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets")
 
-CAT_SCALE = 1.0             # PixelLab cat is 68x68 native; 1.0 keeps it cat-sized vs person at SCALE=5
 CAT_WALK_SPEED_PX = 2       # cats walk lazily
 CAT_RUN_SPEED_PX = 8        # but bolt fast when fleeing
 WALK_FRAME_HOLD = 6         # ticks per walk frame
@@ -57,16 +56,8 @@ class CatScene(QObject):
         self.lanes = self._select_active_lanes()
         self.lane: Lane = self.lanes[0]
 
-        sheet = SpriteSheet.load(os.path.join(ASSETS_DIR, "cat", "cat"))
-        self._walk_right = sheet.animation("walk", scale=CAT_SCALE)
-        self._walk_left = sheet.animation("walk", scale=CAT_SCALE, mirror=True)
-        self._run_right = sheet.animation("run", scale=CAT_SCALE)
-        self._run_left = sheet.animation("run", scale=CAT_SCALE, mirror=True)
-        self._stand_right = sheet.animation("stand", scale=CAT_SCALE)
-        self._stand_left = sheet.animation("stand", scale=CAT_SCALE, mirror=True)
-        self._lie_right = sheet.animation("lie", scale=CAT_SCALE)
-        self._lie_left = sheet.animation("lie", scale=CAT_SCALE, mirror=True)
-
+        self._sheet = SpriteSheet.load(os.path.join(ASSETS_DIR, "cat", "cat"))
+        self._rebuild_frames(self.config.cat_scale)
         self.cat = SpriteWidget(self._stand_right[0])
 
         self.state = State.OFFSTAGE
@@ -96,6 +87,45 @@ class CatScene(QObject):
         self.lanes = self._select_active_lanes()
         if self.lane not in self.lanes:
             self.lane = self.lanes[0]
+
+    # ---- live scale -----------------------------------------------------
+
+    def _rebuild_frames(self, scale: float) -> None:
+        """Render every animation at the given scale and cache as instance state."""
+        s = self._sheet
+        self._walk_right = s.animation("walk", scale=scale)
+        self._walk_left = s.animation("walk", scale=scale, mirror=True)
+        self._run_right = s.animation("run", scale=scale)
+        self._run_left = s.animation("run", scale=scale, mirror=True)
+        self._stand_right = s.animation("stand", scale=scale)
+        self._stand_left = s.animation("stand", scale=scale, mirror=True)
+        self._lie_right = s.animation("lie", scale=scale)
+        self._lie_left = s.animation("lie", scale=scale, mirror=True)
+
+    def set_scale(self, scale: float) -> None:
+        """Live-reload all cat frames at a new scale. Takes effect immediately —
+        the next tick will render with the new pixmaps."""
+        self._rebuild_frames(scale)
+        # Whatever pose the cat is in, refresh its current pixmap so we don't
+        # render at the old scale until the next state's draw call.
+        if self.state == State.WALKING:
+            frames = self._walk_left if self.facing_left else self._walk_right
+        elif self.state == State.LYING:
+            frames = self._lie_left if self.facing_left else self._lie_right
+        elif self.state == State.FLEEING:
+            frames = self._run_left if self.facing_left else self._run_right
+        else:
+            frames = self._stand_right
+        idx = 0
+        if self.state == State.LYING:
+            idx = (self.frame_idx // LIE_FRAME_HOLD) % len(frames)
+        elif self.state == State.WALKING:
+            idx = (self.frame_idx // WALK_FRAME_HOLD) % len(frames)
+        elif self.state == State.FLEEING:
+            idx = (self.frame_idx // RUN_FRAME_HOLD) % len(frames)
+        self.cat.set_pixmap(frames[idx])
+        if self.state != State.OFFSTAGE:
+            self.cat.move_to(self.x, self.lane.ground_y)
 
     def _user_active(self) -> bool:
         return seconds_since_last_input() < 1.5

@@ -66,6 +66,8 @@ class TrayController:
         if key == "multi_monitor":
             self.person_scene.set_multi_monitor(self.config.multi_monitor)
             self.cat_scene.set_multi_monitor(self.config.multi_monitor)
+        elif key == "cat_scale":
+            self.cat_scene.set_scale(self.config.cat_scale)
         # idle_threshold_s and actors.* are read directly from config each tick,
         # so no extra wiring needed.
 

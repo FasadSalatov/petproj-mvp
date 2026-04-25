@@ -64,14 +64,23 @@ class ConfigWindow(QDialog):
 
         # ---- Actors group ----
         act = QGroupBox("Actors")
-        act_layout = QVBoxLayout(act)
+        act_form = QFormLayout(act)
         self._actor_checks: dict[str, QCheckBox] = {}
         for name in sorted(config.actors.keys()):
             cb = QCheckBox(name)
             cb.setChecked(config.actor_enabled(name))
             cb.toggled.connect(lambda checked, n=name: self._on_actor_changed(n, checked))
-            act_layout.addWidget(cb)
+            act_form.addRow("Enable:", cb)
             self._actor_checks[name] = cb
+
+        # Per-actor sizes (currently only cat).
+        self.cat_scale_spin = QDoubleSpinBox()
+        self.cat_scale_spin.setRange(0.5, 4.0)
+        self.cat_scale_spin.setSingleStep(0.25)
+        self.cat_scale_spin.setDecimals(2)
+        self.cat_scale_spin.setValue(config.cat_scale)
+        self.cat_scale_spin.valueChanged.connect(self._on_cat_scale_changed)
+        act_form.addRow("Cat size:", self.cat_scale_spin)
 
         root.addWidget(act)
 
@@ -104,3 +113,8 @@ class ConfigWindow(QDialog):
         self._config.actors[name] = bool(checked)
         self._config.save()
         self._on_change(f"actors.{name}")
+
+    def _on_cat_scale_changed(self, v: float) -> None:
+        self._config.cat_scale = float(v)
+        self._config.save()
+        self._on_change("cat_scale")

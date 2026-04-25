@@ -34,6 +34,11 @@ class Config:
     # Keys must match the actor names the runtime knows about.
     actors: dict = field(default_factory=_default_actors)
 
+    # Display scale for the cat sprite. Native is 68x68 — scale 1.0 keeps it
+    # 68px tall, 2.0 makes it 136px tall, etc. Tune to match the person's
+    # apparent size on screen.
+    cat_scale: float = 1.5
+
     @classmethod
     def load(cls) -> "Config":
         if not os.path.exists(CONFIG_PATH):
