@@ -1,0 +1,679 @@
+{
+  "frames": {
+    "cat stand_0.aseprite": {
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 68,
+        "h": 68
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 68,
+        "h": 68
+      },
+      "sourceSize": {
+        "w": 68,
+        "h": 68
+      },
+      "duration": 100
+    },
+    "cat stand_1.aseprite": {
+      "frame": {
+        "x": 68,
+        "y": 0,
+        "w": 68,
+        "h": 68
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 68,
+        "h": 68
+      },
+      "sourceSize": {
+        "w": 68,
+        "h": 68
+      },
+      "duration": 100
+    },
+    "cat stand_2.aseprite": {
+      "frame": {
+        "x": 136,
+        "y": 0,
+        "w": 68,
+        "h": 68
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 68,
+        "h": 68
+      },
+      "sourceSize": {
+        "w": 68,
+        "h": 68
+      },
+      "duration": 100
+    },
+    "cat stand_3.aseprite": {
+      "frame": {
+        "x": 204,
+        "y": 0,
+        "w": 68,
+        "h": 68
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 68,
+        "h": 68
+      },
+      "sourceSize": {
+        "w": 68,
+        "h": 68
+      },
+      "duration": 100
+    },
+    "cat stand_4.aseprite": {
+      "frame": {
+        "x": 272,
+        "y": 0,
+        "w": 68,
+        "h": 68
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 68,
+        "h": 68
+      },
+      "sourceSize": {
+        "w": 68,
+        "h": 68
+      },
+      "duration": 100
+    },
+    "cat stand_5.aseprite": {
+      "frame": {
+        "x": 340,
+        "y": 0,
+        "w": 68,
+        "h": 68
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 68,
+        "h": 68
+      },
+      "sourceSize": {
+        "w": 68,
+        "h": 68
+      },
+      "duration": 100
+    },
+    "cat stand_6.aseprite": {
+      "frame": {
+        "x": 408,
+        "y": 0,
+        "w": 68,
+        "h": 68
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 68,
+        "h": 68
+      },
+      "sourceSize": {
+        "w": 68,
+        "h": 68
+      },
+      "duration": 100
+    },
+    "cat stand_7.aseprite": {
+      "frame": {
+        "x": 476,
+        "y": 0,
+        "w": 68,
+        "h": 68
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 68,
+        "h": 68
+      },
+      "sourceSize": {
+        "w": 68,
+        "h": 68
+      },
+      "duration": 100
+    },
+    "cat walk_0.aseprite": {
+      "frame": {
+        "x": 544,
+        "y": 0,
+        "w": 68,
+        "h": 68
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 68,
+        "h": 68
+      },
+      "sourceSize": {
+        "w": 68,
+        "h": 68
+      },
+      "duration": 100
+    },
+    "cat walk_1.aseprite": {
+      "frame": {
+        "x": 612,
+        "y": 0,
+        "w": 68,
+        "h": 68
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 68,
+        "h": 68
+      },
+      "sourceSize": {
+        "w": 68,
+        "h": 68
+      },
+      "duration": 100
+    },
+    "cat walk_2.aseprite": {
+      "frame": {
+        "x": 680,
+        "y": 0,
+        "w": 68,
+        "h": 68
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 68,
+        "h": 68
+      },
+      "sourceSize": {
+        "w": 68,
+        "h": 68
+      },
+      "duration": 100
+    },
+    "cat walk_3.aseprite": {
+      "frame": {
+        "x": 748,
+        "y": 0,
+        "w": 68,
+        "h": 68
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 68,
+        "h": 68
+      },
+      "sourceSize": {
+        "w": 68,
+        "h": 68
+      },
+      "duration": 100
+    },
+    "cat run_0.aseprite": {
+      "frame": {
+        "x": 816,
+        "y": 0,
+        "w": 68,
+        "h": 68
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 68,
+        "h": 68
+      },
+      "sourceSize": {
+        "w": 68,
+        "h": 68
+      },
+      "duration": 100
+    },
+    "cat run_1.aseprite": {
+      "frame": {
+        "x": 884,
+        "y": 0,
+        "w": 68,
+        "h": 68
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 68,
+        "h": 68
+      },
+      "sourceSize": {
+        "w": 68,
+        "h": 68
+      },
+      "duration": 100
+    },
+    "cat run_2.aseprite": {
+      "frame": {
+        "x": 952,
+        "y": 0,
+        "w": 68,
+        "h": 68
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 68,
+        "h": 68
+      },
+      "sourceSize": {
+        "w": 68,
+        "h": 68
+      },
+      "duration": 100
+    },
+    "cat run_3.aseprite": {
+      "frame": {
+        "x": 1020,
+        "y": 0,
+        "w": 68,
+        "h": 68
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 68,
+        "h": 68
+      },
+      "sourceSize": {
+        "w": 68,
+        "h": 68
+      },
+      "duration": 100
+    },
+    "cat run_4.aseprite": {
+      "frame": {
+        "x": 1088,
+        "y": 0,
+        "w": 68,
+        "h": 68
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 68,
+        "h": 68
+      },
+      "sourceSize": {
+        "w": 68,
+        "h": 68
+      },
+      "duration": 100
+    },
+    "cat run_5.aseprite": {
+      "frame": {
+        "x": 1156,
+        "y": 0,
+        "w": 68,
+        "h": 68
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 68,
+        "h": 68
+      },
+      "sourceSize": {
+        "w": 68,
+        "h": 68
+      },
+      "duration": 100
+    },
+    "cat run_6.aseprite": {
+      "frame": {
+        "x": 1224,
+        "y": 0,
+        "w": 68,
+        "h": 68
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 68,
+        "h": 68
+      },
+      "sourceSize": {
+        "w": 68,
+        "h": 68
+      },
+      "duration": 100
+    },
+    "cat run_7.aseprite": {
+      "frame": {
+        "x": 1292,
+        "y": 0,
+        "w": 68,
+        "h": 68
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 68,
+        "h": 68
+      },
+      "sourceSize": {
+        "w": 68,
+        "h": 68
+      },
+      "duration": 100
+    },
+    "cat lie_0.aseprite": {
+      "frame": {
+        "x": 1360,
+        "y": 0,
+        "w": 68,
+        "h": 68
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 68,
+        "h": 68
+      },
+      "sourceSize": {
+        "w": 68,
+        "h": 68
+      },
+      "duration": 100
+    },
+    "cat lie_1.aseprite": {
+      "frame": {
+        "x": 1428,
+        "y": 0,
+        "w": 68,
+        "h": 68
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 68,
+        "h": 68
+      },
+      "sourceSize": {
+        "w": 68,
+        "h": 68
+      },
+      "duration": 100
+    },
+    "cat lie_2.aseprite": {
+      "frame": {
+        "x": 1496,
+        "y": 0,
+        "w": 68,
+        "h": 68
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 68,
+        "h": 68
+      },
+      "sourceSize": {
+        "w": 68,
+        "h": 68
+      },
+      "duration": 100
+    },
+    "cat lie_3.aseprite": {
+      "frame": {
+        "x": 1564,
+        "y": 0,
+        "w": 68,
+        "h": 68
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 68,
+        "h": 68
+      },
+      "sourceSize": {
+        "w": 68,
+        "h": 68
+      },
+      "duration": 100
+    },
+    "cat lie_4.aseprite": {
+      "frame": {
+        "x": 1632,
+        "y": 0,
+        "w": 68,
+        "h": 68
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 68,
+        "h": 68
+      },
+      "sourceSize": {
+        "w": 68,
+        "h": 68
+      },
+      "duration": 100
+    },
+    "cat lie_5.aseprite": {
+      "frame": {
+        "x": 1700,
+        "y": 0,
+        "w": 68,
+        "h": 68
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 68,
+        "h": 68
+      },
+      "sourceSize": {
+        "w": 68,
+        "h": 68
+      },
+      "duration": 100
+    },
+    "cat lie_6.aseprite": {
+      "frame": {
+        "x": 1768,
+        "y": 0,
+        "w": 68,
+        "h": 68
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 68,
+        "h": 68
+      },
+      "sourceSize": {
+        "w": 68,
+        "h": 68
+      },
+      "duration": 100
+    },
+    "cat lie_7.aseprite": {
+      "frame": {
+        "x": 1836,
+        "y": 0,
+        "w": 68,
+        "h": 68
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 68,
+        "h": 68
+      },
+      "sourceSize": {
+        "w": 68,
+        "h": 68
+      },
+      "duration": 100
+    },
+    "cat lie_8.aseprite": {
+      "frame": {
+        "x": 1904,
+        "y": 0,
+        "w": 68,
+        "h": 68
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 68,
+        "h": 68
+      },
+      "sourceSize": {
+        "w": 68,
+        "h": 68
+      },
+      "duration": 100
+    },
+    "cat lie_9.aseprite": {
+      "frame": {
+        "x": 1972,
+        "y": 0,
+        "w": 68,
+        "h": 68
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 68,
+        "h": 68
+      },
+      "sourceSize": {
+        "w": 68,
+        "h": 68
+      },
+      "duration": 100
+    }
+  },
+  "meta": {
+    "app": "petproj build_cat_sheet.py",
+    "version": "1",
+    "image": "cat.png",
+    "format": "RGBA8888",
+    "size": {
+      "w": 2040,
+      "h": 68
+    },
+    "scale": "1",
+    "frameTags": [
+      {
+        "name": "stand",
+        "from": 0,
+        "to": 7,
+        "direction": "pingpong"
+      },
+      {
+        "name": "walk",
+        "from": 8,
+        "to": 11,
+        "direction": "forward"
+      },
+      {
+        "name": "run",
+        "from": 12,
+        "to": 19,
+        "direction": "forward"
+      },
+      {
+        "name": "lie",
+        "from": 20,
+        "to": 29,
+        "direction": "pingpong"
+      }
+    ],
+    "layers": [
+      {
+        "name": "main",
+        "opacity": 255,
+        "blendMode": "normal"
+      }
+    ],
+    "_notes": "Generated from PixelLab character 70291340-ea9f-4598-8fea-24396034f439. East direction frames stitched horizontally; west is mirrored at runtime."
+  }
+}

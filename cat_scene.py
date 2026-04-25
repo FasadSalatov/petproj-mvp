@@ -29,11 +29,12 @@ from spritesheet import SpriteSheet
 
 ASSETS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets")
 
-CAT_SCALE = 0.5             # native cat sprite is ~150px wide; halve for screen
-CAT_WALK_SPEED_PX = 2       # cats are slower than the person walking in
-CAT_RUN_SPEED_PX = 8        # but faster when fleeing
-WALK_FRAME_HOLD = 6         # ticks per walk frame (lazy)
-RUN_FRAME_HOLD = 3          # ticks per run frame (fast)
+CAT_SCALE = 1.0             # PixelLab cat is 68x68 native; 1.0 keeps it cat-sized vs person at SCALE=5
+CAT_WALK_SPEED_PX = 2       # cats walk lazily
+CAT_RUN_SPEED_PX = 8        # but bolt fast when fleeing
+WALK_FRAME_HOLD = 6         # ticks per walk frame
+RUN_FRAME_HOLD = 3          # ticks per run frame
+LIE_FRAME_HOLD = 8          # ticks per lying frame (slow breathing)
 LIE_CHANCE_PER_TICK = 0.003 # ~once every ~30 sec while walking
 LIE_DURATION_TICKS = 80     # ~5 s
 ACTOR_NAME = "cat"
@@ -56,15 +57,17 @@ class CatScene(QObject):
         self.lanes = self._select_active_lanes()
         self.lane: Lane = self.lanes[0]
 
-        sheet = SpriteSheet.load(os.path.join(ASSETS_DIR, "cat", "gptcat"))
+        sheet = SpriteSheet.load(os.path.join(ASSETS_DIR, "cat", "cat"))
         self._walk_right = sheet.animation("walk", scale=CAT_SCALE)
         self._walk_left = sheet.animation("walk", scale=CAT_SCALE, mirror=True)
         self._run_right = sheet.animation("run", scale=CAT_SCALE)
         self._run_left = sheet.animation("run", scale=CAT_SCALE, mirror=True)
-        self._stand_right = sheet.frame_by_name("stand", scale=CAT_SCALE)
-        self._lie_right = sheet.frame_by_name("lie", scale=CAT_SCALE)
+        self._stand_right = sheet.animation("stand", scale=CAT_SCALE)
+        self._stand_left = sheet.animation("stand", scale=CAT_SCALE, mirror=True)
+        self._lie_right = sheet.animation("lie", scale=CAT_SCALE)
+        self._lie_left = sheet.animation("lie", scale=CAT_SCALE, mirror=True)
 
-        self.cat = SpriteWidget(self._stand_right)
+        self.cat = SpriteWidget(self._stand_right[0])
 
         self.state = State.OFFSTAGE
         self.x = 0
@@ -164,7 +167,8 @@ class CatScene(QObject):
             "left" if spawn_side == "right" else "right"
         )
         self.frame_idx = 0
-        self.cat.set_pixmap(self._walk_left[0] if self.facing_left else self._walk_right[0])
+        frames = self._walk_left if self.facing_left else self._walk_right
+        self.cat.set_pixmap(frames[0])
         self.cat.move_to(self.x, self.lane.ground_y)
         self.cat.show()
         self._set_state(State.WALKING)
@@ -192,12 +196,20 @@ class CatScene(QObject):
 
     def _begin_lie(self) -> None:
         self.lie_ticks_left = LIE_DURATION_TICKS
-        self.cat.set_pixmap(self._lie_right)  # lie sprite isn't directional here
+        self.frame_idx = 0
+        frames = self._lie_left if self.facing_left else self._lie_right
+        self.cat.set_pixmap(frames[0])
         self.cat.move_to(self.x, self.lane.ground_y)
         self._set_state(State.LYING)
 
     def _tick_lie(self) -> None:
         self.lie_ticks_left -= 1
+        # Cycle through lying frames at a slow breathing pace.
+        frames = self._lie_left if self.facing_left else self._lie_right
+        self.frame_idx = (self.frame_idx + 1) % (len(frames) * LIE_FRAME_HOLD)
+        idx = (self.frame_idx // LIE_FRAME_HOLD) % len(frames)
+        self.cat.set_pixmap(frames[idx])
+        self.cat.move_to(self.x, self.lane.ground_y)
         if self.lie_ticks_left <= 0:
             self._set_state(State.WALKING)
 
