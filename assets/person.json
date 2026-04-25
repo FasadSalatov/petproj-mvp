@@ -1,0 +1,189 @@
+{
+  "frames": {
+    "person walk_a.aseprite": {
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 18,
+        "h": 28
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 18,
+        "h": 28
+      },
+      "sourceSize": {
+        "w": 18,
+        "h": 28
+      },
+      "duration": 100
+    },
+    "person walk_pass.aseprite": {
+      "frame": {
+        "x": 18,
+        "y": 0,
+        "w": 18,
+        "h": 28
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 18,
+        "h": 28
+      },
+      "sourceSize": {
+        "w": 18,
+        "h": 28
+      },
+      "duration": 100
+    },
+    "person walk_b.aseprite": {
+      "frame": {
+        "x": 36,
+        "y": 0,
+        "w": 18,
+        "h": 28
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 18,
+        "h": 28
+      },
+      "sourceSize": {
+        "w": 18,
+        "h": 28
+      },
+      "duration": 100
+    },
+    "person walk_pass2.aseprite": {
+      "frame": {
+        "x": 54,
+        "y": 0,
+        "w": 18,
+        "h": 28
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 18,
+        "h": 28
+      },
+      "sourceSize": {
+        "w": 18,
+        "h": 28
+      },
+      "duration": 100
+    },
+    "person stand.aseprite": {
+      "frame": {
+        "x": 72,
+        "y": 0,
+        "w": 18,
+        "h": 28
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 18,
+        "h": 28
+      },
+      "sourceSize": {
+        "w": 18,
+        "h": 28
+      },
+      "duration": 100
+    },
+    "person sit.aseprite": {
+      "frame": {
+        "x": 90,
+        "y": 0,
+        "w": 18,
+        "h": 28
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 18,
+        "h": 28
+      },
+      "sourceSize": {
+        "w": 18,
+        "h": 28
+      },
+      "duration": 100
+    },
+    "person sit_type.aseprite": {
+      "frame": {
+        "x": 108,
+        "y": 0,
+        "w": 18,
+        "h": 28
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 18,
+        "h": 28
+      },
+      "sourceSize": {
+        "w": 18,
+        "h": 28
+      },
+      "duration": 100
+    }
+  },
+  "meta": {
+    "app": "petproj export_sprites.py",
+    "version": "1",
+    "image": "person.png",
+    "format": "RGBA8888",
+    "size": {
+      "w": 126,
+      "h": 28
+    },
+    "scale": "1",
+    "frameTags": [
+      {
+        "name": "walk",
+        "from": 0,
+        "to": 3,
+        "direction": "forward"
+      },
+      {
+        "name": "stand",
+        "from": 4,
+        "to": 4,
+        "direction": "forward"
+      },
+      {
+        "name": "sit",
+        "from": 5,
+        "to": 6,
+        "direction": "pingpong"
+      }
+    ],
+    "layers": [
+      {
+        "name": "main",
+        "opacity": 255,
+        "blendMode": "normal"
+      }
+    ]
+  }
+}

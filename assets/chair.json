@@ -1,0 +1,51 @@
+{
+  "frames": {
+    "chair default.aseprite": {
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 8,
+        "h": 7
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 8,
+        "h": 7
+      },
+      "sourceSize": {
+        "w": 8,
+        "h": 7
+      },
+      "duration": 100
+    }
+  },
+  "meta": {
+    "app": "petproj export_sprites.py",
+    "version": "1",
+    "image": "chair.png",
+    "format": "RGBA8888",
+    "size": {
+      "w": 8,
+      "h": 7
+    },
+    "scale": "1",
+    "frameTags": [
+      {
+        "name": "default",
+        "from": 0,
+        "to": 0,
+        "direction": "forward"
+      }
+    ],
+    "layers": [
+      {
+        "name": "main",
+        "opacity": 255,
+        "blendMode": "normal"
+      }
+    ]
+  }
+}

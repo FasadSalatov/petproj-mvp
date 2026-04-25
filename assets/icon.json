@@ -1,0 +1,51 @@
+{
+  "frames": {
+    "icon head.aseprite": {
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14
+      },
+      "sourceSize": {
+        "w": 14,
+        "h": 14
+      },
+      "duration": 100
+    }
+  },
+  "meta": {
+    "app": "petproj export_sprites.py",
+    "version": "1",
+    "image": "icon.png",
+    "format": "RGBA8888",
+    "size": {
+      "w": 14,
+      "h": 14
+    },
+    "scale": "1",
+    "frameTags": [
+      {
+        "name": "head",
+        "from": 0,
+        "to": 0,
+        "direction": "forward"
+      }
+    ],
+    "layers": [
+      {
+        "name": "main",
+        "opacity": 255,
+        "blendMode": "normal"
+      }
+    ]
+  }
+}

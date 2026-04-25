@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.egg-info/
+.Python
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# IDE / editor
+.vscode/
+.idea/
+*.swp
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Sprite export backups (created automatically before overwriting)
+assets/*.bak.*
+
+# Generated previews (regen with `python preview_sprites.py`)
+preview/
+
+# User-specific config (committed example only)
+config.json

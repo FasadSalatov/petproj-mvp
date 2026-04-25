@@ -1,0 +1,5 @@
+{
+  "idle_threshold_s": 5.0,
+  "multi_monitor": true,
+  "primary_screen_index": 0
+}

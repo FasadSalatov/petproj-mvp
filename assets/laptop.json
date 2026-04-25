@@ -1,0 +1,51 @@
+{
+  "frames": {
+    "laptop default.aseprite": {
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 9
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 9
+      },
+      "sourceSize": {
+        "w": 14,
+        "h": 9
+      },
+      "duration": 100
+    }
+  },
+  "meta": {
+    "app": "petproj export_sprites.py",
+    "version": "1",
+    "image": "laptop.png",
+    "format": "RGBA8888",
+    "size": {
+      "w": 14,
+      "h": 9
+    },
+    "scale": "1",
+    "frameTags": [
+      {
+        "name": "default",
+        "from": 0,
+        "to": 0,
+        "direction": "forward"
+      }
+    ],
+    "layers": [
+      {
+        "name": "main",
+        "opacity": 255,
+        "blendMode": "normal"
+      }
+    ]
+  }
+}
