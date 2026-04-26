@@ -1,57 +1,90 @@
-"""Persistent user-editable settings for the MVP.
+"""Persistent user-editable settings, grouped by domain.
 
-Loaded at startup from `config.json` next to main.py. Sane defaults if the
-file is missing or has stale keys. Saved back when the Config window
-or tray actions change a value.
+Loaded at startup from `config.json` next to main.py. Saved back from the
+Config window (and any code path that mutates a value).
+
+Schema is nested: `Config.behaviour`, `Config.monitors`, `Config.person`,
+`Config.cat`. Old flat-key files (everything at the top level, plus
+`actors: {person: ..., cat: ...}`) are migrated transparently on load.
 """
 from __future__ import annotations
 
 import json
 import os
-from dataclasses import asdict, dataclass, field, fields
+from dataclasses import asdict, dataclass, field, fields, is_dataclass
+from typing import Any
 
 CONFIG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config.json")
 
 
-def _default_actors() -> dict:
-    return {"person": True, "cat": False}
+# ---------------------------------------------------------------------------
+# Sub-configs — one per domain.
+# ---------------------------------------------------------------------------
+
+@dataclass
+class BehaviourCfg:
+    idle_threshold_s: float = 5.0
+    debug_always_on: bool = False     # bypass idle gate for both scenes
+    debug_paused: bool = False        # freeze tick (for frame-step debug)
 
 
 @dataclass
-class Config:
-    # Idle seconds before the scene starts.
-    idle_threshold_s: float = 5.0
-
-    # If True, scenes can spawn on any monitor. If False, only on
-    # primary_screen_index.
+class MonitorsCfg:
     multi_monitor: bool = True
+    primary_screen_index: int = 0     # used when multi_monitor is False
 
-    # Which screen to use when multi-monitor is disabled. 0 = first screen
-    # reported by Qt (typically the primary). If out of range, falls back to 0.
-    primary_screen_index: int = 0
 
-    # Enable/disable each animated object independently.
-    # Keys must match the actor names the runtime knows about.
-    actors: dict = field(default_factory=_default_actors)
+@dataclass
+class PersonCfg:
+    enabled: bool = True
 
-    # Display scale for the cat sprite. Native is 68x68 — scale 1.0 keeps it
-    # 68px tall, 2.0 makes it 136px tall, etc. Tune to match the person's
-    # apparent size on screen.
-    cat_scale: float = 1.5
 
-    # Vertical offset for the cat sprite, in screen pixels. Positive values
-    # push the cat DOWN (deeper into the taskbar); negative values lift it.
-    # Compensates for the empty padding under the cat in PixelLab's 68x68
-    # canvas — without it the cat appears to float above the taskbar.
-    cat_y_offset_px: int = 0
+@dataclass
+class CatCfg:
+    enabled: bool = False
+    scale: float = 1.5
+    y_offset_px: int = 0
 
-    # Walk and run speeds for the cat, in pixels per tick (60ms tick).
-    cat_walk_speed_px: float = 2.0
-    cat_run_speed_px: float = 8.0
+    # Animation pace: ticks per animation frame. Smaller = faster animation
+    # AND faster movement (because per-frame deltas are spread across fewer
+    # ticks). Use the multipliers below to decouple movement from pace.
+    walk_frame_hold: int = 6
+    run_frame_hold: int = 3
 
-    # Debug: when True, idle-detection is bypassed — actors run continuously
-    # and never go into FLEEING from user input. Useful for tuning visuals.
-    debug_always_on: bool = False
+    # Uniform multiplier on the per-frame deltas. Lets you keep the gait
+    # *shape* (relative ratios between frames) but scale total stride.
+    walk_stride_multiplier: float = 1.0
+    run_stride_multiplier: float = 1.0
+
+    # Per-frame body displacement (screen px) for one frame transition.
+    # 8 entries each for walk (slow-run) and run (running-8-frames).
+    # The actual delta the runtime applies = deltas[i] * stride_multiplier.
+    walk_frame_deltas: list[float] = field(
+        default_factory=lambda: [3.0, 3.0, 3.0, 3.0, 3.0, 3.0, 3.0, 3.0]
+    )
+    run_frame_deltas: list[float] = field(
+        default_factory=lambda: [10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0]
+    )
+
+
+# ---------------------------------------------------------------------------
+# Top-level Config.
+# ---------------------------------------------------------------------------
+
+@dataclass
+class Config:
+    behaviour: BehaviourCfg = field(default_factory=BehaviourCfg)
+    monitors: MonitorsCfg = field(default_factory=MonitorsCfg)
+    person: PersonCfg = field(default_factory=PersonCfg)
+    cat: CatCfg = field(default_factory=CatCfg)
+
+    # ---- API used elsewhere -------------------------------------------------
+
+    def actor_enabled(self, name: str) -> bool:
+        actor = getattr(self, name, None)
+        return bool(getattr(actor, "enabled", False))
+
+    # ---- IO ---------------------------------------------------------------
 
     @classmethod
     def load(cls) -> "Config":
@@ -62,13 +95,7 @@ class Config:
                 raw = json.load(f)
         except (OSError, json.JSONDecodeError):
             return cls()
-        known = {f.name for f in fields(cls)}
-        kwargs = {k: v for k, v in raw.items() if k in known}
-        # Merge actor flags with defaults so newly-added actors get a default.
-        actors = dict(_default_actors())
-        actors.update(kwargs.get("actors") or {})
-        kwargs["actors"] = actors
-        return cls(**kwargs)
+        return _from_raw(raw)
 
     def save(self) -> None:
         try:
@@ -77,5 +104,67 @@ class Config:
         except OSError as e:
             print(f"[config] failed to save: {e}", flush=True)
 
-    def actor_enabled(self, name: str) -> bool:
-        return bool(self.actors.get(name, False))
+
+# ---------------------------------------------------------------------------
+# Loader / migrator.
+# ---------------------------------------------------------------------------
+
+# Map old flat keys → (sub_config_attr, field_name) when migrating legacy files.
+_FLAT_TO_NESTED: dict[str, tuple[str, str]] = {
+    "idle_threshold_s":        ("behaviour", "idle_threshold_s"),
+    "debug_always_on":         ("behaviour", "debug_always_on"),
+    "debug_paused":            ("behaviour", "debug_paused"),
+    "multi_monitor":           ("monitors", "multi_monitor"),
+    "primary_screen_index":    ("monitors", "primary_screen_index"),
+    "cat_scale":               ("cat", "scale"),
+    "cat_y_offset_px":         ("cat", "y_offset_px"),
+    # cat_walk_speed_px / cat_run_speed_px are deprecated (replaced by
+    # per-frame deltas); ignore on load.
+}
+
+
+def _coerce_dataclass(target_cls, value: Any):
+    """Build an instance of `target_cls` from a dict, ignoring unknown keys
+    and using defaults for missing fields."""
+    if not is_dataclass(target_cls) or not isinstance(value, dict):
+        return target_cls()
+    known = {f.name: f for f in fields(target_cls)}
+    kwargs = {}
+    for k, v in value.items():
+        if k not in known:
+            continue
+        # Recurse if the field is itself a dataclass.
+        ftype = known[k].type
+        if isinstance(ftype, type) and is_dataclass(ftype):
+            kwargs[k] = _coerce_dataclass(ftype, v)
+        else:
+            kwargs[k] = v
+    return target_cls(**kwargs)
+
+
+def _from_raw(raw: dict) -> Config:
+    """Build a Config from any of: nested schema, old flat schema, or a mix."""
+    cfg = Config()
+
+    # 1) Nested schema: keys are sub-config names ("behaviour", etc.).
+    for sub_name in ("behaviour", "monitors", "person", "cat"):
+        if sub_name in raw and isinstance(raw[sub_name], dict):
+            sub_cls = type(getattr(cfg, sub_name))
+            setattr(cfg, sub_name, _coerce_dataclass(sub_cls, raw[sub_name]))
+
+    # 2) Legacy flat keys at the top level.
+    for flat_key, (sub_attr, field_name) in _FLAT_TO_NESTED.items():
+        if flat_key in raw:
+            sub = getattr(cfg, sub_attr)
+            if hasattr(sub, field_name):
+                setattr(sub, field_name, raw[flat_key])
+
+    # 3) Legacy `actors: {person: bool, cat: bool}`.
+    if isinstance(raw.get("actors"), dict):
+        actors = raw["actors"]
+        if "person" in actors:
+            cfg.person.enabled = bool(actors["person"])
+        if "cat" in actors:
+            cfg.cat.enabled = bool(actors["cat"])
+
+    return cfg

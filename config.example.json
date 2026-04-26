@@ -1,10 +1,21 @@
 {
-  "idle_threshold_s": 5.0,
-  "multi_monitor": true,
-  "primary_screen_index": 0,
-  "actors": {
-    "person": true,
-    "cat": false
+  "behaviour": {
+    "idle_threshold_s": 5.0,
+    "debug_always_on": false,
+    "debug_paused": false
   },
-  "cat_scale": 1.5
+  "monitors": {
+    "multi_monitor": true,
+    "primary_screen_index": 0
+  },
+  "person": {
+    "enabled": true
+  },
+  "cat": {
+    "enabled": false,
+    "scale": 1.5,
+    "y_offset_px": 0,
+    "walk_frame_deltas": [3.0, 3.0, 3.0, 3.0, 3.0, 3.0, 3.0, 3.0],
+    "run_frame_deltas": [10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0]
+  }
 }

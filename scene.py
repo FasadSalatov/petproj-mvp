@@ -140,6 +140,9 @@ class Scene(QObject):
         self.exit_side: str = "right"
         self.frame_idx = 0
         self.work_ticks_left = 0
+        # Debug stepping budget — ticks the QTimer is allowed to run while
+        # debug_paused is on. Set by step_one_frame(), decremented per tick.
+        self._step_ticks_remaining = 0
 
         self.timer = QTimer(self)
         self.timer.timeout.connect(self._tick)
@@ -152,9 +155,9 @@ class Scene(QObject):
         based on the current config. We KEEP the physical neighbour flags
         so the character never spawns on a coordinate that's actually
         on a different monitor."""
-        if self.config.multi_monitor:
+        if self.config.monitors.multi_monitor:
             return list(self._all_lanes)
-        idx = self.config.primary_screen_index
+        idx = self.config.monitors.primary_screen_index
         if idx < 0 or idx >= len(self._all_lanes):
             idx = 0
         return [self._all_lanes[idx]]
@@ -162,7 +165,7 @@ class Scene(QObject):
     def set_multi_monitor(self, enabled: bool) -> None:
         """Live toggle. The change takes effect on the next spawn (the current
         scene, if any, finishes on its current lane)."""
-        self.config.multi_monitor = enabled
+        self.config.monitors.multi_monitor = enabled
         self.config.save()
         # Re-discover so neighbour flags are correct again if turning multi back on.
         self._all_lanes = discover_lanes()
@@ -204,14 +207,14 @@ class Scene(QObject):
         self.chair.show()
 
     def _user_active(self) -> bool:
-        if self.config.debug_always_on:
+        if self.config.behaviour.debug_always_on:
             return False
         return seconds_since_last_input() < 1.5
 
     def _user_idle_long_enough(self) -> bool:
-        if self.config.debug_always_on:
+        if self.config.behaviour.debug_always_on:
             return True
-        return seconds_since_last_input() >= self.config.idle_threshold_s
+        return seconds_since_last_input() >= self.config.behaviour.idle_threshold_s
 
     def _person_center_x(self) -> int:
         return self.x + self.person.width() // 2
@@ -261,6 +264,22 @@ class Scene(QObject):
     # ---- main tick -----------------------------------------------------
 
     def _tick(self) -> None:
+        # Frozen: skip unless we still have step-ticks queued (Step button).
+        if self.config.behaviour.debug_paused and self._step_ticks_remaining <= 0:
+            return
+        if self._step_ticks_remaining > 0:
+            self._step_ticks_remaining -= 1
+        self._tick_inner()
+
+    def step_one_frame(self) -> None:
+        """Queue ONE animation frame worth of ticks. The QTimer plays them
+        at normal rate so the transition is visible, then auto-freezes."""
+        if self.state in (State.ENTERING, State.LEAVING, State.FLEEING):
+            self._step_ticks_remaining = WALK_FRAME_HOLD
+        else:
+            self._step_ticks_remaining = 1
+
+    def _tick_inner(self) -> None:
         # Disabled actor: ensure nothing visible on screen, then bail.
         if not self.config.actor_enabled("person"):
             if self.state != State.OFFSTAGE:

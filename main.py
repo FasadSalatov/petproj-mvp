@@ -40,10 +40,12 @@ class TrayController:
         self.tray = QSystemTrayIcon(_build_tray_icon(), parent=app)
         self.tray.setToolTip("petproj-mvp")
 
-        # Tray menu: just Config + Quit (everything else moved into the dialog).
+        # Tray menu: Config + Reload + Quit (everything else lives in the dialog).
         self.menu = QMenu()
         self.config_action = self.menu.addAction("Config")
         self.config_action.triggered.connect(self._open_config_window)
+        self.reload_action = self.menu.addAction("Reload sprites")
+        self.reload_action.triggered.connect(self._on_reload)
         self.menu.addSeparator()
         self.quit_action = self.menu.addAction("Quit")
         self.quit_action.triggered.connect(self._on_quit)
@@ -58,18 +60,34 @@ class TrayController:
             self._config_window.raise_()
             self._config_window.activateWindow()
             return
-        self._config_window = ConfigWindow(self.config, self._on_config_changed)
+        self._config_window = ConfigWindow(
+            self.config, self._on_config_changed, self._on_step,
+        )
         self._config_window.show()
 
     def _on_config_changed(self, key: str) -> None:
-        # Forward live updates to scenes that care.
-        if key == "multi_monitor":
-            self.person_scene.set_multi_monitor(self.config.multi_monitor)
-            self.cat_scene.set_multi_monitor(self.config.multi_monitor)
-        elif key == "cat_scale":
-            self.cat_scene.set_scale(self.config.cat_scale)
-        # idle_threshold_s and actors.* are read directly from config each tick,
-        # so no extra wiring needed.
+        # Forward live updates to scenes that care. Most fields are read
+        # directly from config each tick, so this only handles the ones that
+        # need an explicit re-render or re-discovery.
+        if key == "monitors.multi_monitor":
+            self.person_scene.set_multi_monitor(self.config.monitors.multi_monitor)
+            self.cat_scene.set_multi_monitor(self.config.monitors.multi_monitor)
+        elif key == "cat.scale":
+            self.cat_scene.set_scale(self.config.cat.scale)
+
+    def _on_step(self) -> None:
+        # Single-step both scenes — caller is the Step button while paused.
+        self.person_scene.step_one_frame()
+        self.cat_scene.step_one_frame()
+
+    def _on_reload(self) -> None:
+        # Re-read sprites from disk so live-edited PNGs are picked up without
+        # restarting the app. Currently only the cat is hand-edited.
+        try:
+            self.cat_scene.reload_sprite()
+            print("[main] cat sprite reloaded", flush=True)
+        except Exception as e:
+            print(f"[main] reload failed: {e}", flush=True)
 
     def _on_quit(self) -> None:
         self.person_scene.timer.stop()
