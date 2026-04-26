@@ -42,6 +42,7 @@ from enum import Enum, auto
 
 from PyQt6.QtCore import QObject, QTimer, pyqtSignal
 
+import ctypes
 import datetime as _dt
 
 from PyQt6.QtGui import QCursor
@@ -56,6 +57,21 @@ from spritesheet import SpriteSheet
 from window_platforms import (
     WalkSegment, collect_windows, compute_segments, find_segment_under,
 )
+
+try:
+    import psutil  # type: ignore
+    _HAS_PSUTIL = True
+except ImportError:
+    _HAS_PSUTIL = False
+
+# GetAsyncKeyState — used to detect click-on-cat without intercepting input.
+_VK_LBUTTON = 0x01
+try:
+    _GetAsyncKeyState = ctypes.windll.user32.GetAsyncKeyState
+    _GetAsyncKeyState.argtypes = [ctypes.c_int]
+    _GetAsyncKeyState.restype = ctypes.c_short
+except (AttributeError, OSError):
+    _GetAsyncKeyState = None
 
 ASSETS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets")
 
@@ -93,6 +109,17 @@ HUNGER_TIRED = 60.0           # threshold where pacing/posture starts to change
 # like the cat is checking on the user.
 CURSOR_CURIOSITY = 0.30
 
+# Treat hunt: the cat heads to a dropped treat, eats it, hunger resets.
+TREAT_REACH_PX = 12          # close-enough distance to start eating
+TREAT_EAT_TICKS = 90         # ~5.4s of eating animation
+TREAT_TIMEOUT_TICKS = 600    # 36s — treat vanishes if cat can't reach it
+
+# CPU awareness: high CPU = anxious, more pacing & jumps. Low CPU = relaxed.
+CPU_POLL_TICKS = 30          # ~1.8s
+
+# Pomodoro: cat acts excited during "work" sprints, lazy during "break".
+POMODORO_TICK_PER_SECOND = 1000 // TICK_MS  # ticks in a second
+
 ACTOR_NAME = "cat"
 
 
@@ -105,6 +132,8 @@ class State(Enum):
     PREP_JUMP = auto()
     JUMPING = auto()
     LANDING = auto()
+    TREAT_HUNT = auto()      # walking straight to a dropped treat
+    EATING = auto()          # consuming the treat (sit pose for ~5s)
 
 
 @dataclass
@@ -135,6 +164,7 @@ class CatScene(QObject):
         self.cat = SpriteWidget(self._stand_right[0])
         self.bubble = SpeechBubble(self.cat)
         self.effects = EffectsLayer(self.cat)
+        self.effects.configure_scale(max(1, int(round(self.config.cat.scale))))
 
         self.state = State.OFFSTAGE
         self.x = 0.0
@@ -160,6 +190,22 @@ class CatScene(QObject):
 
         # Hunger — drives day/night-style pacing tweaks; resettable from tray.
         self._hunger: float = 0.0
+        # Treat hunt timing (drops are tray-triggered).
+        self._treat_eat_left = 0
+        self._treat_age_ticks = 0
+        # Click-to-pet: rising-edge detection for LBUTTON.
+        self._last_lbutton_pressed: bool = False
+        self._petted_count: int = 0
+        # CPU awareness state.
+        self._cpu_pct: float = 25.0
+        self._cpu_poll_tick: int = 0
+        # Pomodoro state. _seconds_left counts down at 1Hz; on zero we swap
+        # phase or stop. Phase "off" = no schedule.
+        self._pomodoro_phase: str = "off"   # "off" | "work" | "break"
+        self._pomodoro_seconds_left: int = 0
+        self._pomodoro_work_min: int = 25
+        self._pomodoro_break_min: int = 5
+        self._pomodoro_subtick: int = 0
 
         self.timer = QTimer(self)
         self.timer.timeout.connect(self._tick)
@@ -209,6 +255,7 @@ class CatScene(QObject):
 
     def set_scale(self, scale: float) -> None:
         self._rebuild_frames(scale)
+        self.effects.configure_scale(max(1, int(round(scale))))
         self._render_current()
 
     # ---- pace ----------------------------------------------------------
@@ -244,23 +291,35 @@ class CatScene(QObject):
         return h >= a or h <= b
 
     def _hunger_factor(self) -> float:
-        """0..1, where 1 = starving. Smooth ramp above HUNGER_TIRED."""
         if self._hunger <= HUNGER_TIRED:
             return 0.0
         return min(1.0, (self._hunger - HUNGER_TIRED) / (HUNGER_FULL - HUNGER_TIRED))
+
+    def _cpu_factor(self) -> float:
+        """0..1 above 40% CPU; 0 below. Ramps to 1 at 100%."""
+        return max(0.0, min(1.0, (self._cpu_pct - 40.0) / 60.0))
 
     def _walk_pace_factor(self) -> float:
         f = 1.0
         if self._is_night():
             f *= 0.55
-        f *= 1.0 - 0.4 * self._hunger_factor()       # 100% → 60% when starving
+        f *= 1.0 - 0.4 * self._hunger_factor()
+        f *= 1.0 + 0.30 * self._cpu_factor()
+        if self._pomodoro_phase == "break":
+            f *= 0.6
+        elif self._pomodoro_phase == "work":
+            f *= 1.15
         return f
 
     def _lie_chance(self) -> float:
         f = 1.0
         if self._is_night():
             f *= 3.0
-        f *= 1.0 + 1.5 * self._hunger_factor()       # up to 2.5x when hungry
+        f *= 1.0 + 1.5 * self._hunger_factor()
+        if self._pomodoro_phase == "break":
+            f *= 2.5
+        elif self._pomodoro_phase == "work":
+            f *= 0.4
         return LIE_CHANCE_PER_TICK * f
 
     def _sit_chance(self) -> float:
@@ -268,6 +327,8 @@ class CatScene(QObject):
         if self._is_night():
             f *= 2.5
         f *= 1.0 + 1.0 * self._hunger_factor()
+        if self._pomodoro_phase == "break":
+            f *= 2.0
         return SIT_CHANCE_PER_TICK * f
 
     def _jump_chance(self) -> float:
@@ -275,13 +336,54 @@ class CatScene(QObject):
         if self._is_night():
             f *= 0.4
         f *= 1.0 - 0.6 * self._hunger_factor()
+        f *= 1.0 + 0.5 * self._cpu_factor()
+        if self._pomodoro_phase == "break":
+            f *= 0.4
+        elif self._pomodoro_phase == "work":
+            f *= 1.4
         return JUMP_CHANCE_PER_TICK * f
 
     def feed(self) -> None:
-        """Tray-driven: cat is now stuffed and shows a happy bubble."""
         self._hunger = 0.0
         if self.cat.isVisible():
             self._say("nya", duration_ms=1500)
+
+    # ---- pomodoro -----------------------------------------------------
+
+    def start_pomodoro(self, work_min: int = 25, break_min: int = 5) -> None:
+        self._pomodoro_work_min = max(1, int(work_min))
+        self._pomodoro_break_min = max(1, int(break_min))
+        self._pomodoro_phase = "work"
+        self._pomodoro_seconds_left = self._pomodoro_work_min * 60
+        self._pomodoro_subtick = 0
+        if self.cat.isVisible():
+            self._say("hup", duration_ms=1500)
+
+    def stop_pomodoro(self) -> None:
+        self._pomodoro_phase = "off"
+        self._pomodoro_seconds_left = 0
+
+    def _tick_pomodoro(self) -> None:
+        if self._pomodoro_phase == "off":
+            return
+        self._pomodoro_subtick += 1
+        if self._pomodoro_subtick < POMODORO_TICK_PER_SECOND:
+            return
+        self._pomodoro_subtick = 0
+        self._pomodoro_seconds_left -= 1
+        if self._pomodoro_seconds_left > 0:
+            return
+        # Phase boundary — swap.
+        if self._pomodoro_phase == "work":
+            self._pomodoro_phase = "break"
+            self._pomodoro_seconds_left = self._pomodoro_break_min * 60
+            if self.cat.isVisible():
+                self._say("zzz", duration_ms=1800)
+        else:
+            self._pomodoro_phase = "work"
+            self._pomodoro_seconds_left = self._pomodoro_work_min * 60
+            if self.cat.isVisible():
+                self._say("hup", duration_ms=1500)
 
     def _ground_y(self) -> int:
         return self.lane.ground_y + self.config.cat.y_offset_px
@@ -452,6 +554,8 @@ class CatScene(QObject):
             State.PREP_JUMP: JUMP_FRAME_HOLD,
             State.JUMPING: JUMP_FRAME_HOLD,
             State.LANDING: JUMP_FRAME_HOLD,
+            State.TREAT_HUNT: self._walk_hold(),
+            State.EATING: SIT_FRAME_HOLD,
         }
         self._step_ticks_remaining = holds.get(self.state, 1)
 
@@ -465,6 +569,17 @@ class CatScene(QObject):
             # Slow hunger drift. Capped so feed-then-idle still applies.
             if self._hunger < HUNGER_FULL:
                 self._hunger = min(HUNGER_FULL, self._hunger + HUNGER_PER_TICK)
+            # CPU poll once every CPU_POLL_TICKS (psutil uses cached delta
+            # since last call, so passing interval=None is the cheap path).
+            self._cpu_poll_tick += 1
+            if self._cpu_poll_tick >= CPU_POLL_TICKS and _HAS_PSUTIL:
+                self._cpu_poll_tick = 0
+                try:
+                    self._cpu_pct = float(psutil.cpu_percent(interval=None))
+                except Exception:
+                    pass
+            self._tick_pomodoro()
+            self._maybe_register_pet()
             self._segments_tick = (self._segments_tick + 1) % WINDOW_REFRESH_TICKS
             if self._segments_tick == 0:
                 self._refresh_segments()
@@ -517,6 +632,10 @@ class CatScene(QObject):
             self._tick_land()
         elif st == State.FLEEING:
             self._tick_flee()
+        elif st == State.TREAT_HUNT:
+            self._tick_treat_hunt()
+        elif st == State.EATING:
+            self._tick_eat()
 
     # ---- enter / exit --------------------------------------------------
 
@@ -551,6 +670,36 @@ class CatScene(QObject):
         self._current_seg = None
         self._set_state(State.OFFSTAGE)
 
+    # ---- click-to-pet -------------------------------------------------
+
+    def _maybe_register_pet(self) -> None:
+        """LBUTTON edge detection: when the user left-clicks while the
+        cursor is over the cat, count it as a pet. The cat is click-through
+        so we don't actually swallow the click — we just observe it."""
+        if _GetAsyncKeyState is None or not self.cat.isVisible():
+            return
+        # GetAsyncKeyState returns a SHORT; high bit set when key pressed.
+        pressed = bool(_GetAsyncKeyState(_VK_LBUTTON) & 0x8000)
+        if pressed and not self._last_lbutton_pressed:
+            cursor = QCursor.pos()
+            cx = self.cat.x()
+            cy = self.cat.y()
+            if (cx <= cursor.x() <= cx + self.cat.width()
+                    and cy <= cursor.y() <= cy + self.cat.height()):
+                self._on_petted()
+        self._last_lbutton_pressed = pressed
+
+    def _on_petted(self) -> None:
+        self._petted_count += 1
+        # Tiny food bonus + happy reaction. Doesn't change state — the cat
+        # keeps doing whatever it was doing, just looks happier.
+        self._hunger = max(0.0, self._hunger - 6.0)
+        self._say(line_for("happy"), duration_ms=1200)
+        scale = max(2, int(round(self.config.cat.scale)))
+        cx = self.cat.x() + self.cat.width() // 2
+        cy = self.cat.y() + self.cat.height() // 3
+        self.effects.burst_sparkles(cx, cy, scale=scale, n=8)
+
     def summon_to(self, x: int, y: int) -> None:
         """Tray-driven teleport. Snap the cat to (x, y) on the lane ground
         (we don't yet teleport onto a window). Shows a happy bubble."""
@@ -568,6 +717,75 @@ class CatScene(QObject):
             self.cat.show()
         self._set_state(State.WALKING)
         self._say(line_for("happy"))
+
+    # ---- treat hunt ---------------------------------------------------
+
+    def drop_treat_at(self, world_x: int) -> None:
+        """Drop a treat near `world_x` (tray-driven). Cat snaps to ground
+        and starts walking straight to it. Out-of-lane drops are ignored."""
+        if not self.cat.isVisible():
+            return
+        l = self.lane.full.left() + self.cat.width() // 2 + 8
+        r = self.lane.full.right() - self.cat.width() // 2 - 8
+        treat_x = max(l, min(r, int(world_x)))
+        scale = max(2, int(round(self.config.cat.scale)))
+        self.effects.drop_treat(treat_x, self._ground_y(), scale)
+        self._current_seg = None
+        self.y_bottom = self._ground_y()
+        self._jump = None
+        self.target_x = treat_x - self.cat.width() // 2
+        self.facing_left = self.target_x < self.x
+        self.frame_idx = 0
+        self._treat_age_ticks = 0
+        self._set_state(State.TREAT_HUNT)
+        self._say("?", duration_ms=1200)
+
+    def _tick_treat_hunt(self) -> None:
+        # Treat lifetime — cat couldn't reach it in time, give up.
+        self._treat_age_ticks += 1
+        if self._treat_age_ticks > TREAT_TIMEOUT_TICKS:
+            self.effects.clear_treat()
+            self._set_state(State.WALKING)
+            return
+        if not self.effects.has_treat():
+            # Something else cleared the treat (flee, scene reset).
+            self._set_state(State.WALKING)
+            return
+
+        hold = self._walk_hold()
+        mult = self.config.cat.walk_stride_multiplier * self._walk_pace_factor()
+        delta = self._delta_for_tick(self.config.cat.walk_frame_deltas, hold) * mult
+        self.x += -delta if self.facing_left else delta
+        self._draw_walk()
+
+        # Reach check: cat-center within a small radius of treat position.
+        treat_pos = self.effects.treat_pos
+        if treat_pos is None:
+            return
+        cat_cx = self.x + self.cat.width() / 2
+        if abs(cat_cx - treat_pos[0]) <= TREAT_REACH_PX:
+            self._begin_eat()
+
+    def _begin_eat(self) -> None:
+        self.frame_idx = 0
+        self._treat_eat_left = TREAT_EAT_TICKS
+        self.cat.set_pixmap(self._sit[0])
+        self.cat.move_to(int(self.x), self._surface_y())
+        self._set_state(State.EATING)
+        self._say("yum.", duration_ms=1500)
+
+    def _tick_eat(self) -> None:
+        self._treat_eat_left -= 1
+        frames = self._sit
+        self.frame_idx = (self.frame_idx + 1) % (len(frames) * SIT_FRAME_HOLD)
+        idx = (self.frame_idx // SIT_FRAME_HOLD) % len(frames)
+        self.cat.set_pixmap(frames[idx])
+        self.cat.move_to(int(self.x), self._surface_y())
+        if self._treat_eat_left <= 0:
+            self._hunger = 0.0
+            self.effects.clear_treat()
+            self._say(line_for("happy"), duration_ms=1300)
+            self._set_state(State.WALKING)
 
     # ---- speech bubble convenience ------------------------------------
 
@@ -841,11 +1059,12 @@ class CatScene(QObject):
             self.y_bottom = self._ground_y()
         else:
             self._current_seg = None
+        # Treat is forfeited on flee — user's mouse moved.
+        self.effects.clear_treat()
         self.exit_side = self._nearest_external_edge()
         self.facing_left = self.exit_side == "left"
         self.target_x = self._exit_target_x(self.exit_side)
         self.frame_idx = 0
-        # Cat doesn't talk while sprinting away.
         self.bubble.hide()
         self._set_state(State.FLEEING)
 
@@ -866,13 +1085,13 @@ class CatScene(QObject):
 
     def _render_current(self) -> None:
         st = self.state
-        if st == State.WALKING:
+        if st in (State.WALKING, State.TREAT_HUNT):
             frames = self._walk_left if self.facing_left else self._walk_right
             hold = self._walk_hold()
         elif st == State.LYING:
             frames = self._lie_left if self.facing_left else self._lie_right
             hold = LIE_FRAME_HOLD
-        elif st == State.SITTING:
+        elif st in (State.SITTING, State.EATING):
             frames = self._sit
             hold = SIT_FRAME_HOLD
         elif st == State.FLEEING:

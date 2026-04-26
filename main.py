@@ -50,6 +50,12 @@ class TrayController:
         self.summon_action.triggered.connect(self._on_summon)
         self.feed_action = self.menu.addAction("Feed cat")
         self.feed_action.triggered.connect(self._on_feed)
+        self.treat_action = self.menu.addAction("Drop treat at cursor")
+        self.treat_action.triggered.connect(self._on_drop_treat)
+        self.menu.addSeparator()
+        self.pomodoro_action = self.menu.addAction("Start Pomodoro (25/5)")
+        self.pomodoro_action.triggered.connect(self._on_toggle_pomodoro)
+        self.menu.addSeparator()
         self.reload_action = self.menu.addAction("Reload sprites")
         self.reload_action.triggered.connect(self._on_reload)
         self.menu.addSeparator()
@@ -107,6 +113,19 @@ class TrayController:
         if not self.config.actor_enabled("cat"):
             return
         self.cat_scene.feed()
+
+    def _on_drop_treat(self) -> None:
+        if not self.config.actor_enabled("cat"):
+            return
+        self.cat_scene.drop_treat_at(QCursor.pos().x())
+
+    def _on_toggle_pomodoro(self) -> None:
+        if self.cat_scene._pomodoro_phase == "off":
+            self.cat_scene.start_pomodoro(25, 5)
+            self.pomodoro_action.setText("Stop Pomodoro")
+        else:
+            self.cat_scene.stop_pomodoro()
+            self.pomodoro_action.setText("Start Pomodoro (25/5)")
 
     def toggle_boss_key(self) -> None:
         """Boss key: hide both scenes immediately and reset them to OFFSTAGE
