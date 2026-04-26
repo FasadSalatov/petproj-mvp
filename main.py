@@ -17,6 +17,7 @@ from config import Config
 from config_window import ConfigWindow
 from hotkeys import GlobalHotkey
 from scene import ASSETS_DIR, Scene
+from skins import SKINS
 from spritesheet import SpriteSheet
 
 
@@ -55,6 +56,17 @@ class TrayController:
         self.menu.addSeparator()
         self.pomodoro_action = self.menu.addAction("Start Pomodoro (25/5)")
         self.pomodoro_action.triggered.connect(self._on_toggle_pomodoro)
+        self.skins_menu = self.menu.addMenu("Skin")
+        for skin in SKINS:
+            act = self.skins_menu.addAction(skin.name)
+            act.setCheckable(True)
+            act.setChecked(skin.name == self.config.cat.skin)
+            act.triggered.connect(
+                lambda _checked=False, name=skin.name: self._on_pick_skin(name)
+            )
+        self.menu.addSeparator()
+        self.achievements_action = self.menu.addAction("Achievements…")
+        self.achievements_action.triggered.connect(self._on_show_achievements)
         self.menu.addSeparator()
         self.reload_action = self.menu.addAction("Reload sprites")
         self.reload_action.triggered.connect(self._on_reload)
@@ -126,6 +138,20 @@ class TrayController:
         else:
             self.cat_scene.stop_pomodoro()
             self.pomodoro_action.setText("Start Pomodoro (25/5)")
+
+    def _on_pick_skin(self, name: str) -> None:
+        self.cat_scene.set_skin(name)
+        for act in self.skins_menu.actions():
+            act.setChecked(act.text() == name)
+
+    def _on_show_achievements(self) -> None:
+        # Lightweight tooltip-style dump: every line is "label — locked/unlocked".
+        from PyQt6.QtWidgets import QMessageBox
+        rows = []
+        for ach, unlocked, value in self.cat_scene.achievements.all_progress():
+            mark = "[x]" if unlocked else "[ ]"
+            rows.append(f"{mark}  {ach.label}  ({int(value)}/{ach.threshold} {ach.stat})")
+        QMessageBox.information(None, "Achievements", "\n".join(rows))
 
     def toggle_boss_key(self) -> None:
         """Boss key: hide both scenes immediately and reset them to OFFSTAGE

@@ -47,12 +47,14 @@ import datetime as _dt
 
 from PyQt6.QtGui import QCursor
 
+from achievements import AchievementTracker
 from bubble import SpeechBubble, line_for
 from character import SpriteWidget
 from config import Config
 from effects import EffectsLayer
 from idle_detector import seconds_since_last_input
 from scene import EXIT_BUFFER_PX, TICK_MS, Lane, discover_lanes
+from skins import SKINS, Skin, hue_shifted_pixmap
 from spritesheet import SpriteSheet
 from window_platforms import (
     WalkSegment, collect_windows, compute_segments, find_segment_under,
@@ -70,8 +72,11 @@ try:
     _GetAsyncKeyState = ctypes.windll.user32.GetAsyncKeyState
     _GetAsyncKeyState.argtypes = [ctypes.c_int]
     _GetAsyncKeyState.restype = ctypes.c_short
+    _GetForegroundWindow = ctypes.windll.user32.GetForegroundWindow
+    _GetForegroundWindow.restype = ctypes.c_void_p
 except (AttributeError, OSError):
     _GetAsyncKeyState = None
+    _GetForegroundWindow = None
 
 ASSETS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets")
 
@@ -120,6 +125,11 @@ CPU_POLL_TICKS = 30          # ~1.8s
 # Pomodoro: cat acts excited during "work" sprints, lazy during "break".
 POMODORO_TICK_PER_SECOND = 1000 // TICK_MS  # ticks in a second
 
+# Active-window watch: rare pull toward the user's foreground window —
+# cat decides "I'll go check what they're doing" and either walks toward
+# its title bar (if on ground at the right y) or initiates a jump onto it.
+ACTIVE_WINDOW_VISIT_PER_TICK = 0.005   # ~1 attempt every ~12s while walking
+
 ACTOR_NAME = "cat"
 
 
@@ -158,13 +168,15 @@ class CatScene(QObject):
         self.lanes = self._select_active_lanes()
         self.lane: Lane = self.lanes[0]
 
-        self._sheet = SpriteSheet.load(os.path.join(ASSETS_DIR, "cat", "cat"))
+        self._base_sheet = SpriteSheet.load(os.path.join(ASSETS_DIR, "cat", "cat"))
+        self._sheet = self._apply_skin(self._base_sheet, self.config.cat.skin)
         self._has_jump_anim = False
         self._rebuild_frames(self.config.cat.scale)
         self.cat = SpriteWidget(self._stand_right[0])
         self.bubble = SpeechBubble(self.cat)
         self.effects = EffectsLayer(self.cat)
         self.effects.configure_scale(max(1, int(round(self.config.cat.scale))))
+        self.achievements = AchievementTracker()
 
         self.state = State.OFFSTAGE
         self.x = 0.0
@@ -250,8 +262,33 @@ class CatScene(QObject):
             self._has_jump_anim = False
 
     def reload_sprite(self) -> None:
-        self._sheet = SpriteSheet.load(os.path.join(ASSETS_DIR, "cat", "cat"))
+        self._base_sheet = SpriteSheet.load(os.path.join(ASSETS_DIR, "cat", "cat"))
+        self._sheet = self._apply_skin(self._base_sheet, self.config.cat.skin)
         self.set_scale(self.config.cat.scale)
+
+    # ---- skin transform ----------------------------------------------
+
+    def _apply_skin(self, base: SpriteSheet, skin_name: str) -> SpriteSheet:
+        skin = next((s for s in SKINS if s.name == skin_name), None)
+        if skin is None or skin.name == "tabby (orange)":
+            return base
+        try:
+            new_atlas = hue_shifted_pixmap(base.atlas, skin)
+        except Exception as e:
+            print(f"[cat] skin transform failed: {e}", flush=True)
+            return base
+        return base.with_atlas(new_atlas)
+
+    def set_skin(self, skin_name: str) -> None:
+        if skin_name == self.config.cat.skin and self._sheet is not None:
+            return
+        self.config.cat.skin = skin_name
+        self.config.save()
+        self._sheet = self._apply_skin(self._base_sheet, skin_name)
+        self._rebuild_frames(self.config.cat.scale)
+        self._render_current()
+        if self.cat.isVisible():
+            self._say(line_for("happy"), duration_ms=1200)
 
     def set_scale(self, scale: float) -> None:
         self._rebuild_frames(scale)
@@ -480,6 +517,55 @@ class CatScene(QObject):
         )
         self._current_seg = match  # may become None → cat will fall
 
+    def _foreground_jump_target(self) -> tuple[WalkSegment | None, float, int] | None:
+        """If the user's foreground window has a visible top-edge segment in
+        our current lane, build a jump-plan tuple targeting it. Returns
+        None if no suitable segment exists or we're already there."""
+        if _GetForegroundWindow is None:
+            return None
+        try:
+            hwnd_raw = _GetForegroundWindow()
+        except Exception:
+            return None
+        if not hwnd_raw:
+            return None
+        target_hwnd = int(hwnd_raw)
+        # Find the widest visible segment of that hwnd in our cached list.
+        best: WalkSegment | None = None
+        for s in self._segments:
+            if s.hwnd != target_hwnd:
+                continue
+            if best is None or s.width > best.width:
+                best = s
+        if best is None:
+            return None
+        cw = self.cat.width()
+        if best.width < cw + 8:
+            return None
+        # Already on it? Skip.
+        if (self._current_seg is not None
+                and self._current_seg.hwnd == best.hwnd
+                and self._current_seg.x1 == best.x1):
+            return None
+        # Reachability against our jump physics.
+        center_x = self.x + cw / 2
+        if best.x2 < center_x - JUMP_MAX_DX or best.x1 > center_x + JUMP_MAX_DX:
+            return None
+        dst_y = best.y + self.config.cat.y_offset_px
+        dy = dst_y - self._surface_y()
+        if dy < -JUMP_MAX_UP or dy > JUMP_MAX_DOWN:
+            return None
+        # Land on the closer half of the segment.
+        if best.x2 < center_x:
+            landing_x = best.x2 - cw / 2 - 6
+        elif best.x1 > center_x:
+            landing_x = best.x1 + cw / 2 + 6
+        else:
+            landing_x = (best.x1 + best.x2) / 2
+        if landing_x - cw / 2 < best.x1 or landing_x + cw / 2 > best.x2:
+            return None
+        return (best, landing_x, dst_y)
+
     def _choose_jump_target(self) -> tuple[WalkSegment | None, float, int] | None:
         """Pick a reachable destination (segment or floor). Returns
         (target, dst_center_x, dst_y) or None."""
@@ -699,6 +785,17 @@ class CatScene(QObject):
         cx = self.cat.x() + self.cat.width() // 2
         cy = self.cat.y() + self.cat.height() // 3
         self.effects.burst_sparkles(cx, cy, scale=scale, n=8)
+        self._announce_achievements(self.achievements.increment("pets"))
+
+    # ---- achievements -------------------------------------------------
+
+    def _announce_achievements(self, labels: list[str]) -> None:
+        """Show one achievement bubble at a time; queue extras with a tiny
+        delay so the player can read each. Currently we just show the
+        first immediately — multi-unlocks are rare in practice."""
+        if not labels or not self.cat.isVisible():
+            return
+        self._say(labels[0], duration_ms=2400)
 
     def summon_to(self, x: int, y: int) -> None:
         """Tray-driven teleport. Snap the cat to (x, y) on the lane ground
@@ -785,6 +882,7 @@ class CatScene(QObject):
             self._hunger = 0.0
             self.effects.clear_treat()
             self._say(line_for("happy"), duration_ms=1300)
+            self._announce_achievements(self.achievements.increment("treats"))
             self._set_state(State.WALKING)
 
     # ---- speech bubble convenience ------------------------------------
@@ -808,6 +906,15 @@ class CatScene(QObject):
                 return
             if r < lie_p + sit_p:
                 self._begin_sit()
+                return
+
+        # Active-window watch: occasionally aim straight for the user's
+        # foreground window's title bar. Falls through silently if it's
+        # not a valid jump target (off-lane, too narrow, fully occluded).
+        if random.random() < ACTIVE_WINDOW_VISIT_PER_TICK:
+            fg_target = self._foreground_jump_target()
+            if fg_target is not None:
+                self._begin_prep(fg_target)
                 return
 
         if random.random() < self._jump_chance():
@@ -989,6 +1096,9 @@ class CatScene(QObject):
             self._begin_fall(self.x)
             return
         self._current_seg = still
+        # Counts as a successful jump + a window visit (if new hwnd).
+        self._announce_achievements(self.achievements.increment("jumps"))
+        self._announce_achievements(self.achievements.visit_window(still.hwnd))
         self._begin_land()
 
     def _begin_fall(self, new_x: float) -> None:

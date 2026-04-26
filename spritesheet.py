@@ -50,6 +50,11 @@ class SpriteSheet:
         self.frame_h = frames[0].rect.height() if frames else 0
         self._scaled_cache: dict[tuple[int, int, bool], QPixmap] = {}
 
+    def with_atlas(self, new_atlas: QPixmap) -> "SpriteSheet":
+        """Return a new SpriteSheet using the same frame metadata but a
+        different (e.g. recoloured) atlas. Used by the skin tinter."""
+        return SpriteSheet(new_atlas, self.frames, self.tags)
+
     # ---- factory --------------------------------------------------------
 
     @classmethod

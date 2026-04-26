@@ -43,6 +43,7 @@ class PersonCfg:
 class CatCfg:
     enabled: bool = False
     name: str = "tabby"            # shown in tray tooltip + speech bubble
+    skin: str = "tabby (orange)"   # one of skins.SKINS names
     scale: float = 1.5
     y_offset_px: int = 0
     # Day/night behaviour: when True, between `night_start_hour` and
