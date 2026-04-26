@@ -42,8 +42,15 @@ class PersonCfg:
 @dataclass
 class CatCfg:
     enabled: bool = False
+    name: str = "tabby"            # shown in tray tooltip + speech bubble
     scale: float = 1.5
     y_offset_px: int = 0
+    # Day/night behaviour: when True, between `night_start_hour` and
+    # `night_end_hour` (system-clock local time) the cat lies/sits more
+    # often and walks slower — looks like it's getting drowsy.
+    night_mode: bool = True
+    night_start_hour: int = 22     # inclusive
+    night_end_hour: int = 7        # inclusive (wraps around midnight)
 
     # Animation pace: ticks per animation frame. Smaller = faster animation
     # AND faster movement (because per-frame deltas are spread across fewer

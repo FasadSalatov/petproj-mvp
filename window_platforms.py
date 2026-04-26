@@ -1,21 +1,31 @@
-"""Enumerate top-level windows and expose their top edges as platforms.
+"""Enumerate top-level windows and turn them into walkable segments.
 
-The cat uses these as horizontal surfaces it can stand and jump on. We pull
-the geometry straight from Win32 (via ctypes — no pywin32 dependency) so the
-detection works the same way as `idle_detector.py`.
+A *segment* is a contiguous horizontal slice on the top edge of a window
+that is not occluded by any window stacked above it. The cat can stand,
+walk, and jump only on segments — not on the full top edge of a window
+that's hidden behind another, and not on the slice that another window
+crosses over.
 
-Coordinates are absolute virtual-desktop pixels, matching the same space
-`Lane.full` uses, so platforms can be compared directly with lane bounds.
+Coordinates are absolute virtual-desktop pixels.
 
-Filtering rules:
-    - skip invisible / minimized / cloaked windows
+Filtering rules for windows:
+    - skip invisible / minimized / cloaked
     - skip windows owned by our own process (the SpriteWidget instances)
     - skip tool/popup windows (WS_EX_TOOLWINDOW, WS_EX_NOACTIVATE)
-    - skip fullscreen-on-monitor windows (no point sitting on a full-screen game)
+    - skip fullscreen-on-monitor windows
     - skip windows with degenerate size
 
 DwmGetWindowAttribute(DWMWA_EXTENDED_FRAME_BOUNDS) is preferred over
-GetWindowRect because Aero adds an invisible drop-shadow margin to GetWindowRect.
+GetWindowRect because Aero adds an invisible drop-shadow margin to the
+plain rect.
+
+Z-order
+-------
+EnumWindows enumerates top-level windows from the front-most to the
+back-most. We assign `z = 0` to the first window we keep, increasing
+afterwards — so a smaller `z` means "rendered above". A front window F
+occludes a target T's top edge at point (x, T.top) iff:
+    F.z < T.z   AND   F.left <= x <= F.right   AND   F.top <= T.top <= F.bottom
 """
 from __future__ import annotations
 
@@ -61,7 +71,6 @@ _user32.GetWindowRect.restype = wintypes.BOOL
 _user32.GetWindowTextLengthW.argtypes = [wintypes.HWND]
 _user32.GetWindowTextLengthW.restype = ctypes.c_int
 
-# GetWindowLongPtrW is 64-bit safe; fall back to GetWindowLongW on 32-bit.
 _GetWindowLong = getattr(_user32, "GetWindowLongPtrW", _user32.GetWindowLongW)
 _GetWindowLong.argtypes = [wintypes.HWND, ctypes.c_int]
 _GetWindowLong.restype = ctypes.c_ssize_t
@@ -75,20 +84,45 @@ _dwmapi.DwmGetWindowAttribute.argtypes = [
 _dwmapi.DwmGetWindowAttribute.restype = ctypes.HRESULT
 
 
-@dataclass(frozen=True)
-class Platform:
-    """A horizontal surface the cat can walk / land on.
+# --- public types --------------------------------------------------------
 
-    `y` is the top edge of the window in absolute virtual-desktop coords —
-    that's where the cat's feet should rest. `x1`/`x2` are the left and
-    right walkable extents (inclusive). `hwnd` lets callers re-check
-    aliveness; `priority` is a tiebreaker (higher = preferred when overlap).
+@dataclass(frozen=True)
+class Window:
+    """A visible top-level window in absolute virtual-desktop coords.
+
+    `z` is the EnumWindows-derived stacking index: 0 = front-most,
+    larger = further back. Used to compute occlusion.
     """
+    hwnd: int
+    left: int
+    top: int
+    right: int
+    bottom: int
+    z: int
+
+    @property
+    def width(self) -> int:
+        return self.right - self.left
+
+    @property
+    def height(self) -> int:
+        return self.bottom - self.top
+
+
+@dataclass(frozen=True)
+class WalkSegment:
+    """A walkable, non-occluded slice of a window's top edge.
+
+    The cat can stand at any (x, `y`) where `x1` <= x <= `x2`. Multiple
+    segments per source window are possible when other windows partially
+    cover the top edge (e.g. a chat window covering the middle of a
+    browser's title bar leaves a left and a right segment).
+    """
+    hwnd: int
+    y: int
     x1: int
     x2: int
-    y: int
-    hwnd: int
-    priority: int = 0
+    z: int
 
     @property
     def width(self) -> int:
@@ -104,7 +138,6 @@ _OWN_PID = os.getpid()
 
 
 def _frame_rect(hwnd: int) -> wintypes.RECT | None:
-    """Return the *visual* window rect (no Aero shadow), or None on failure."""
     rect = wintypes.RECT()
     hr = _dwmapi.DwmGetWindowAttribute(
         hwnd, DWMWA_EXTENDED_FRAME_BOUNDS,
@@ -134,138 +167,151 @@ def _pid_for(hwnd: int) -> int:
 
 def _interesting(hwnd: int, min_width: int, min_height: int,
                  exclude_pids: set[int]) -> wintypes.RECT | None:
-    """Return the window's frame rect if we should treat it as a platform."""
     if not _user32.IsWindowVisible(hwnd):
         return None
     if _user32.IsIconic(hwnd):
         return None
     if _is_cloaked(hwnd):
         return None
-
     style = _GetWindowLong(hwnd, GWL_STYLE)
     if not (style & WS_VISIBLE):
         return None
     if style & WS_MINIMIZE:
         return None
-
     ex_style = _GetWindowLong(hwnd, GWL_EXSTYLE)
     if ex_style & (WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE):
         return None
-
     if _user32.GetWindowTextLengthW(hwnd) == 0:
-        return None  # blank-titled top-level windows are usually invisible shells
-
-    pid = _pid_for(hwnd)
-    if pid in exclude_pids:
         return None
-
+    if _pid_for(hwnd) in exclude_pids:
+        return None
     rect = _frame_rect(hwnd)
     if rect is None:
         return None
-    w = rect.right - rect.left
-    h = rect.bottom - rect.top
-    if w < min_width or h < min_height:
+    if rect.right - rect.left < min_width:
         return None
-
+    if rect.bottom - rect.top < min_height:
+        return None
     return rect
 
 
 # --- public API ----------------------------------------------------------
 
-def collect_platforms(
+def collect_windows(
     *,
     min_width: int = 120,
     min_height: int = 80,
     exclude_pids: set[int] | None = None,
     desktop_bounds: tuple[int, int, int, int] | None = None,
-) -> list[Platform]:
-    """Return the top edges of all "interesting" top-level windows as platforms.
+) -> list[Window]:
+    """All "interesting" top-level windows, in front-to-back z-order.
 
-    Platforms are sorted by Z-order (front-most first), so front windows
-    occlude rear ones in `visible_segments_for`. Windows that look fullscreen
-    on a monitor inside `desktop_bounds` are skipped (no point sitting on a
-    full-screen YouTube tab).
+    Windows that fully cover `desktop_bounds` (treat as fullscreen apps)
+    are skipped — no point sitting on a full-screen YouTube tab.
     """
     pids = {_OWN_PID}
     if exclude_pids:
         pids |= set(exclude_pids)
 
-    out: list[Platform] = []
-    z = [0]  # captured by the callback below
+    out: list[Window] = []
+    z_counter = [0]
 
     @WNDENUMPROC
     def _enum(hwnd, _lparam):
         rect = _interesting(hwnd, min_width, min_height, pids)
         if rect is None:
             return True
-        # Skip apparent fullscreen windows: anything that covers >= a known
-        # monitor area entirely. Caller passes the union/per-monitor bounds.
         if desktop_bounds is not None:
             l, t, r, b = desktop_bounds
             if rect.left <= l and rect.top <= t and rect.right >= r and rect.bottom >= b:
                 return True
-        z[0] += 1
-        out.append(Platform(
-            x1=int(rect.left),
-            x2=int(rect.right),
-            y=int(rect.top),
+        out.append(Window(
             hwnd=int(hwnd),
-            priority=-z[0],   # earlier in z-order = front-most = higher priority
+            left=int(rect.left), top=int(rect.top),
+            right=int(rect.right), bottom=int(rect.bottom),
+            z=z_counter[0],
         ))
+        z_counter[0] += 1
         return True
 
     _user32.EnumWindows(_enum, 0)
     return out
 
 
-def visible_segments_for(target: Platform, fronts: list[Platform]) -> list[tuple[int, int]]:
-    """Return the parts of `target` not occluded by any window in `fronts`.
+def compute_segments(
+    windows: list[Window],
+    *,
+    lane_bounds: tuple[int, int, int, int] | None = None,
+    min_segment_width: int = 0,
+) -> list[WalkSegment]:
+    """For every window in `windows`, return the visible (non-occluded)
+    intervals of its top edge.
 
-    `fronts` should be platforms with a higher Z-order (= rendered above
-    `target`). Returns a list of (x1, x2) ranges that are walkable; an empty
-    list means the platform is fully obscured.
-
-    Front-window occlusion is approximated by treating any front window whose
-    rect crosses `target.y` and overlaps horizontally as a wall — we cut its
-    [x1, x2] out of `target.x1..x2`. Good enough for the cat: it never
-    appears to walk *into* an overlapping window, and the segment list lines
-    up with reality for the common left-of/right-of cases.
+    Segments narrower than `min_segment_width` are dropped — the cat
+    needs room to stand. If `lane_bounds` is given, segments whose host
+    window's top edge is outside the lane's vertical range are dropped,
+    and segment x-extents are clipped to the lane's horizontal range.
     """
-    pieces = [(target.x1, target.x2)]
-    for f in fronts:
-        if f.hwnd == target.hwnd:
-            continue
-        # We only care about fronts whose body covers target.y. We don't have
-        # the front rect's bottom here (Platform stores only the top y), so we
-        # approximate: any front above (smaller y) doesn't occlude; any front
-        # at the same y or below crosses the top edge and counts.
-        if f.y > target.y:
-            continue
-        new_pieces = []
-        for (a, b) in pieces:
-            if f.x2 <= a or f.x1 >= b:
-                new_pieces.append((a, b))
+    out: list[WalkSegment] = []
+    for w in windows:
+        # Lane vertical filter: w.top must fall inside the lane's y range.
+        if lane_bounds is not None:
+            ll, lt, lr, lb = lane_bounds
+            if not (lt <= w.top <= lb):
                 continue
-            if f.x1 > a:
-                new_pieces.append((a, f.x1))
-            if f.x2 < b:
-                new_pieces.append((f.x2, b))
-        pieces = new_pieces
-        if not pieces:
-            break
-    return pieces
+        else:
+            ll = lr = None  # unused
+
+        pieces = [(w.left, w.right)]
+        # Subtract every front-of-w window whose body crosses w.top
+        # along the x-axis where the windows overlap.
+        for f in windows:
+            if f.hwnd == w.hwnd:
+                continue
+            if f.z >= w.z:
+                continue
+            # f must vertically span w.top.
+            if f.top > w.top or f.bottom < w.top:
+                continue
+            if f.right <= w.left or f.left >= w.right:
+                continue
+            new_pieces: list[tuple[int, int]] = []
+            for (a, b) in pieces:
+                if f.right <= a or f.left >= b:
+                    new_pieces.append((a, b))
+                    continue
+                if f.left > a:
+                    new_pieces.append((a, f.left))
+                if f.right < b:
+                    new_pieces.append((f.right, b))
+            pieces = new_pieces
+            if not pieces:
+                break
+
+        for (x1, x2) in pieces:
+            if lane_bounds is not None:
+                x1 = max(x1, ll)
+                x2 = min(x2, lr)
+            width = x2 - x1
+            if width < min_segment_width:
+                continue
+            out.append(WalkSegment(hwnd=w.hwnd, y=w.top, x1=x1, x2=x2, z=w.z))
+    return out
 
 
-def find_platform_under(x: int, platforms: list[Platform], min_y: int) -> Platform | None:
-    """Find the highest platform whose horizontal extent contains `x` and whose
-    top is at or below `min_y` (closer to the floor). Used when the cat falls
-    off the current platform and needs to know what catches it."""
-    best: Platform | None = None
-    for p in platforms:
-        if not p.contains_x(x):
+def find_segment_under(x: int, segments: list[WalkSegment], min_y: int,
+                       min_width: int = 0) -> WalkSegment | None:
+    """Highest segment whose horizontal extent contains `x` and whose y is
+    at or below `min_y`. Used when the cat falls off and needs to know
+    what catches it."""
+    best: WalkSegment | None = None
+    for s in segments:
+        if s.width < min_width:
             continue
-        if p.y < min_y:
+        if not s.contains_x(x):
             continue
-        if best is None or p.y < best.y:
-            best = p
+        if s.y < min_y:
+            continue
+        if best is None or s.y < best.y:
+            best = s
     return best

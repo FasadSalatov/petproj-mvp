@@ -1,32 +1,37 @@
-"""Cat actor — second scene, now able to hop on top of windows.
+"""Cat actor — second scene, with proper occlusion-aware window hopping.
 
 States
 ------
     OFFSTAGE   — hidden, waiting for idle.
-    WALKING    — walks left/right on its current surface (lane ground OR a
-                 window-top platform). May randomly choose to lie/sit/jump.
+    WALKING    — walks left/right on its current surface (lane ground or a
+                 window-top segment). May randomly choose to lie/sit/jump.
     LYING      — pauses mid-walk, plays the lying frame.
     SITTING    — south-facing rest.
     PREP_JUMP  — wind-up frames before a jump leaves the surface.
-    JUMPING    — parabolic arc between two surfaces (or the same surface, or
-                 a downward fall when the cat walks off a ledge).
+    JUMPING    — parabolic arc between two surfaces, or downward fall when
+                 the cat walks off a ledge / its window gets closed / a
+                 front window covers its current segment.
     LANDING    — short squash after touch-down, then back to WALKING.
     FLEEING    — runs to the nearest external edge when the user touches
-                 the keyboard/mouse. Mid-air jumps abort and the cat falls
-                 to the lane floor before sprinting.
+                 input; mid-air jumps abort and the cat snaps to the floor.
 
 Surfaces
 --------
 The cat's current surface is either:
-    * `self._current_platform = None` → standing on lane ground (taskbar top).
-    * a `Platform` from `window_platforms.collect_platforms()` → the top edge
-      of a real visible window in absolute virtual-desktop coordinates.
+    * `self._current_seg = None`  → standing on lane ground (taskbar top).
+    * a `WalkSegment`             → a non-occluded slice of some window's
+                                    top edge.
 
-Every `WINDOW_REFRESH_TICKS` ticks the platform list is re-polled. If the
-cat's current platform's window has closed, the cat starts falling.
+`window_platforms.compute_segments()` already removes the parts of every
+window's top edge that are covered by front windows, so the cat can only
+stand where it would actually be visible.
 
-Per-frame movement deltas (config-driven) drive walk/run; jumps use a
-linear-X / parabolic-Y interpolation over a pre-computed flight plan.
+Multi-monitor
+-------------
+With `multi_monitor=False`, the cat is restricted to one lane (the
+selected primary screen). When that lane has a neighbour on the side
+the cat is heading toward, we never let the cat exit through the
+seam — it does a round trip instead.
 """
 from __future__ import annotations
 
@@ -37,12 +42,20 @@ from enum import Enum, auto
 
 from PyQt6.QtCore import QObject, QTimer, pyqtSignal
 
+import datetime as _dt
+
+from PyQt6.QtGui import QCursor
+
+from bubble import SpeechBubble, line_for
 from character import SpriteWidget
 from config import Config
+from effects import EffectsLayer
 from idle_detector import seconds_since_last_input
 from scene import EXIT_BUFFER_PX, TICK_MS, Lane, discover_lanes
 from spritesheet import SpriteSheet
-from window_platforms import Platform, collect_platforms, find_platform_under
+from window_platforms import (
+    WalkSegment, collect_windows, compute_segments, find_segment_under,
+)
 
 ASSETS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets")
 
@@ -56,17 +69,29 @@ SIT_DURATION_TICKS = 100
 JUMP_FRAME_HOLD = 4
 JUMP_PREP_TICKS = 6
 JUMP_LAND_TICKS = 4
-JUMP_HORIZ_SPEED_PX = 9      # px per tick of horizontal travel (sets flight duration)
+JUMP_HORIZ_SPEED_PX = 9      # px per tick of horizontal travel during flight
 JUMP_PEAK_BASE_PX = 60       # minimum apex above the higher endpoint
 JUMP_PEAK_PER_DX = 0.18      # extra apex per pixel of horizontal travel
 JUMP_MIN_DX = 40
-JUMP_MAX_DX = 700            # cat can leap roughly across a 1080p screen
-JUMP_MAX_UP = 1400           # cat can leap from taskbar all the way to a top-of-screen window
+JUMP_MAX_DX = 700
+JUMP_MAX_UP = 1400           # cat can leap from taskbar all the way up
 JUMP_MAX_DOWN = 1400
 JUMP_CHANCE_PER_TICK = 0.025  # ~1 jump-attempt every ~3 sec while walking
 FALL_HOP_PEAK_PX = 8          # tiny upward arc when stepping off a ledge
 
-WINDOW_REFRESH_TICKS = 6     # ~360ms re-poll of EnumWindows
+WINDOW_REFRESH_TICKS = 4     # ~240ms re-poll of EnumWindows
+
+# Hunger model: 0 = stuffed, 100 = starving. Increments per tick; at full
+# starvation the cat lies twice as much and walks at 60% pace. "Feed cat"
+# resets to 0 with a happy bubble.
+HUNGER_PER_TICK = 0.05       # ~83 sec from 0 to 100
+HUNGER_FULL = 100.0
+HUNGER_TIRED = 60.0           # threshold where pacing/posture starts to change
+
+# Cursor curiosity: ~30% of the time the cat picks a wander target near
+# the current mouse cursor instead of the random interior choice — looks
+# like the cat is checking on the user.
+CURSOR_CURIOSITY = 0.30
 
 ACTOR_NAME = "cat"
 
@@ -84,14 +109,13 @@ class State(Enum):
 
 @dataclass
 class _JumpPlan:
-    """One scheduled flight: linear-X, parabolic-Y over `total_ticks`."""
     src_x: float
     src_y: int
     dst_x: float
     dst_y: int
-    target: Platform | None      # None = landing on lane ground
+    target: WalkSegment | None    # None = landing on lane ground
     total_ticks: int
-    peak_dy: int                 # offset from midpoint y; negative = upward
+    peak_dy: int                  # offset from midpoint y; negative = upward
     facing_left: bool
 
 
@@ -109,10 +133,12 @@ class CatScene(QObject):
         self._has_jump_anim = False
         self._rebuild_frames(self.config.cat.scale)
         self.cat = SpriteWidget(self._stand_right[0])
+        self.bubble = SpeechBubble(self.cat)
+        self.effects = EffectsLayer(self.cat)
 
         self.state = State.OFFSTAGE
-        self.x = 0.0                 # float for fractional per-tick movement
-        self.y_bottom = 0            # absolute screen y of cat's feet (used in JUMPING)
+        self.x = 0.0
+        self.y_bottom = 0
         self.target_x = 0
         self.facing_left = False
         self.frame_idx = 0
@@ -121,16 +147,19 @@ class CatScene(QObject):
         self.exit_side: str = "right"
         self._step_ticks_remaining = 0
 
-        # Window-platform tracking.
-        self._platforms: list[Platform] = []
-        self._platforms_tick = 0
-        self._current_platform: Platform | None = None
+        # Window-segment tracking.
+        self._segments: list[WalkSegment] = []
+        self._segments_tick = 0
+        self._current_seg: WalkSegment | None = None
 
         # Jump bookkeeping.
         self._jump: _JumpPlan | None = None
         self._jump_tick = 0
         self._land_tick = 0
         self._prep_tick = 0
+
+        # Hunger — drives day/night-style pacing tweaks; resettable from tray.
+        self._hunger: float = 0.0
 
         self.timer = QTimer(self)
         self.timer.timeout.connect(self._tick)
@@ -165,10 +194,6 @@ class CatScene(QObject):
         self._lie_right = s.animation("lie", scale=scale)
         self._lie_left = s.animation("lie", scale=scale, mirror=True)
         self._sit = s.animation("sit", scale=scale)
-
-        # Optional jump animation: if the sheet ships with a "jump" tag we
-        # use it for prep/air/land; otherwise we fall back to the run cycle
-        # (cat looks "in motion" mid-air, which is acceptable for v1).
         if "jump" in s.tags:
             self._jump_right = s.animation("jump", scale=scale)
             self._jump_left = s.animation("jump", scale=scale, mirror=True)
@@ -179,8 +204,6 @@ class CatScene(QObject):
             self._has_jump_anim = False
 
     def reload_sprite(self) -> None:
-        """Re-read assets/cat/cat.{png,json} from disk and rebuild caches.
-        Triggered from the tray Reload action."""
         self._sheet = SpriteSheet.load(os.path.join(ASSETS_DIR, "cat", "cat"))
         self.set_scale(self.config.cat.scale)
 
@@ -208,14 +231,65 @@ class CatScene(QObject):
             return True
         return seconds_since_last_input() >= self.config.behaviour.idle_threshold_s
 
+    def _is_night(self) -> bool:
+        """True when the cat should be in 'sleepy' mode based on local time."""
+        if not self.config.cat.night_mode:
+            return False
+        h = _dt.datetime.now().hour
+        a = self.config.cat.night_start_hour
+        b = self.config.cat.night_end_hour
+        if a <= b:
+            return a <= h <= b
+        # Wraps midnight: a > b → night = [a, 24) ∪ [0, b]
+        return h >= a or h <= b
+
+    def _hunger_factor(self) -> float:
+        """0..1, where 1 = starving. Smooth ramp above HUNGER_TIRED."""
+        if self._hunger <= HUNGER_TIRED:
+            return 0.0
+        return min(1.0, (self._hunger - HUNGER_TIRED) / (HUNGER_FULL - HUNGER_TIRED))
+
+    def _walk_pace_factor(self) -> float:
+        f = 1.0
+        if self._is_night():
+            f *= 0.55
+        f *= 1.0 - 0.4 * self._hunger_factor()       # 100% → 60% when starving
+        return f
+
+    def _lie_chance(self) -> float:
+        f = 1.0
+        if self._is_night():
+            f *= 3.0
+        f *= 1.0 + 1.5 * self._hunger_factor()       # up to 2.5x when hungry
+        return LIE_CHANCE_PER_TICK * f
+
+    def _sit_chance(self) -> float:
+        f = 1.0
+        if self._is_night():
+            f *= 2.5
+        f *= 1.0 + 1.0 * self._hunger_factor()
+        return SIT_CHANCE_PER_TICK * f
+
+    def _jump_chance(self) -> float:
+        f = 1.0
+        if self._is_night():
+            f *= 0.4
+        f *= 1.0 - 0.6 * self._hunger_factor()
+        return JUMP_CHANCE_PER_TICK * f
+
+    def feed(self) -> None:
+        """Tray-driven: cat is now stuffed and shows a happy bubble."""
+        self._hunger = 0.0
+        if self.cat.isVisible():
+            self._say("nya", duration_ms=1500)
+
     def _ground_y(self) -> int:
         return self.lane.ground_y + self.config.cat.y_offset_px
 
     def _surface_y(self) -> int:
-        """Screen y for the cat's BOTTOM on its current surface."""
-        if self._current_platform is None:
+        if self._current_seg is None:
             return self._ground_y()
-        return self._current_platform.y + self.config.cat.y_offset_px
+        return self._current_seg.y + self.config.cat.y_offset_px
 
     def _set_state(self, s: State) -> None:
         self.state = s
@@ -250,76 +324,102 @@ class CatScene(QObject):
         return "left" if dist_left < dist_right else "right"
 
     def _has_clearance_to_rest(self) -> bool:
-        """Cat lies/sits only when fully on its current surface with margin."""
-        if self._current_platform is not None:
+        if self._current_seg is not None:
             margin = self.cat.width() // 4
-            p = self._current_platform
-            return self.x >= p.x1 + margin and self.x + self.cat.width() <= p.x2 - margin
+            s = self._current_seg
+            return self.x >= s.x1 + margin and self.x + self.cat.width() <= s.x2 - margin
         margin = self.cat.width() // 3
         return (
             self.x >= self.lane.full.left() + margin
             and self.x + self.cat.width() <= self.lane.full.right() - margin
         )
 
-    # ---- platform polling ---------------------------------------------
+    def _pick_wander_target(self) -> int:
+        """Pick a new interior x for the cat to head toward. Biased toward
+        the opposite side of the lane from current x, with an occasional
+        curiosity hop toward wherever the user's cursor is — looks like the
+        cat dropping in to check on the human."""
+        margin = self.cat.width()
+        left = self.lane.full.left() + margin
+        right = self.lane.full.right() - margin
+        if right <= left:
+            return int((self.lane.full.left() + self.lane.full.right()) / 2)
+        if random.random() < CURSOR_CURIOSITY:
+            cursor_x = QCursor.pos().x()
+            if left <= cursor_x <= right:
+                return cursor_x
+        mid = (left + right) // 2
+        if self.x < mid:
+            return random.randint(mid, right)
+        return random.randint(left, mid)
 
-    def _refresh_platforms(self) -> None:
+    # ---- segments polling ---------------------------------------------
+
+    def _refresh_segments(self) -> None:
+        cw = max(int(self.cat.width()), 1)
         bounds = (
             self.lane.full.left(), self.lane.full.top(),
             self.lane.full.right(), self.lane.full.bottom(),
         )
-        self._platforms = collect_platforms(desktop_bounds=bounds)
-        # Re-bind current platform by hwnd in case its rect changed.
-        if self._current_platform is not None:
-            same = next(
-                (p for p in self._platforms if p.hwnd == self._current_platform.hwnd),
-                None,
-            )
-            self._current_platform = same  # may become None → cat falls
+        windows = collect_windows(desktop_bounds=bounds)
+        # A segment must be wide enough for the cat to fit comfortably.
+        min_w = max(40, cw - 8)
+        self._segments = compute_segments(
+            windows, lane_bounds=bounds, min_segment_width=min_w,
+        )
+        if self._current_seg is None:
+            return
+        # Re-bind the current segment by hwnd + cat-center containment.
+        cx = int(self.x + cw / 2)
+        match = next(
+            (s for s in self._segments
+             if s.hwnd == self._current_seg.hwnd and s.contains_x(cx)),
+            None,
+        )
+        self._current_seg = match  # may become None → cat will fall
 
-    def _platforms_in_lane(self) -> list[Platform]:
-        l = self.lane.full.left()
-        r = self.lane.full.right()
-        t = self.lane.full.top()
-        b = self.lane.full.bottom()
-        return [p for p in self._platforms if p.x2 > l and p.x1 < r and t <= p.y <= b]
-
-    def _choose_jump_target(self) -> tuple[Platform | None, float, int] | None:
-        """Pick a reachable destination. Returns (platform, dst_x_center, dst_y)
-        or None if nothing nearby."""
-        cand: list[tuple[Platform | None, float, int]] = []
+    def _choose_jump_target(self) -> tuple[WalkSegment | None, float, int] | None:
+        """Pick a reachable destination (segment or floor). Returns
+        (target, dst_center_x, dst_y) or None."""
+        cand: list[tuple[WalkSegment | None, float, int]] = []
         cur_y = self._surface_y()
-        center_x = self.x + self.cat.width() / 2
+        cw = self.cat.width()
+        center_x = self.x + cw / 2
 
-        # Hopping down to lane floor is always an option from a window.
-        if self._current_platform is not None:
+        # From a segment, hopping down to lane floor is always an option.
+        if self._current_seg is not None:
             direction = -1 if self.facing_left else 1
             jump_dx = random.randint(JUMP_MIN_DX, JUMP_MAX_DX // 2)
             cand.append((None, center_x + direction * jump_dx, self._ground_y()))
 
-        for p in self._platforms_in_lane():
-            if (self._current_platform is not None
-                    and p.hwnd == self._current_platform.hwnd):
+        for s in self._segments:
+            # Skip our own segment.
+            if (self._current_seg is not None
+                    and s.hwnd == self._current_seg.hwnd
+                    and s.x1 == self._current_seg.x1
+                    and s.x2 == self._current_seg.x2):
                 continue
-            # Horizontal reach test against the closest edge of p.
-            if p.x2 < center_x - JUMP_MAX_DX or p.x1 > center_x + JUMP_MAX_DX:
+            # Horizontal reach test.
+            if s.x2 < center_x - JUMP_MAX_DX or s.x1 > center_x + JUMP_MAX_DX:
                 continue
-            dst_y = p.y + self.config.cat.y_offset_px
+            dst_y = s.y + self.config.cat.y_offset_px
             dy = dst_y - cur_y
             if dy < -JUMP_MAX_UP or dy > JUMP_MAX_DOWN:
                 continue
-            # Pick a landing spot near whichever edge is closer.
-            if p.x2 < center_x:
-                landing_x = p.x2 - self.cat.width() / 2 - 4
-            elif p.x1 > center_x:
-                landing_x = p.x1 + self.cat.width() / 2 + 4
+            # Pick a landing centre near the closer edge of this segment.
+            if s.x2 < center_x:
+                landing_x = s.x2 - cw / 2 - 4
+            elif s.x1 > center_x:
+                landing_x = s.x1 + cw / 2 + 4
             else:
-                # Cat is horizontally over this platform — aim for its centre.
-                landing_x = (p.x1 + p.x2) / 2
+                landing_x = (s.x1 + s.x2) / 2
+            # Body must fit on the segment.
+            if landing_x - cw / 2 < s.x1 or landing_x + cw / 2 > s.x2:
+                continue
             dx = abs(landing_x - center_x)
             if dx < JUMP_MIN_DX or dx > JUMP_MAX_DX:
                 continue
-            cand.append((p, landing_x, dst_y))
+            cand.append((s, landing_x, dst_y))
 
         if not cand:
             return None
@@ -361,19 +461,40 @@ class CatScene(QObject):
                 self._exit_now()
             return
 
-        # Re-poll windows periodically (skipped while off-stage to save CPU).
         if self.state != State.OFFSTAGE:
-            self._platforms_tick = (self._platforms_tick + 1) % WINDOW_REFRESH_TICKS
-            if self._platforms_tick == 0:
-                self._refresh_platforms()
-                # Rug pulled: window closed under our feet.
-                if (self._current_platform is None and self.state == State.WALKING
+            # Slow hunger drift. Capped so feed-then-idle still applies.
+            if self._hunger < HUNGER_FULL:
+                self._hunger = min(HUNGER_FULL, self._hunger + HUNGER_PER_TICK)
+            self._segments_tick = (self._segments_tick + 1) % WINDOW_REFRESH_TICKS
+            if self._segments_tick == 0:
+                self._refresh_segments()
+                # If the segment we were standing on disappeared between polls
+                # (closed/moved/covered), drop the cat to whatever's below.
+                if (self._current_seg is None and self.state == State.WALKING
+                        and self.y_bottom != 0
                         and self.y_bottom != self._ground_y()):
-                    # Defensive: shouldn't normally hit, _refresh_platforms
-                    # nulls _current_platform if the hwnd disappears.
-                    pass
+                    self._begin_fall(self.x)
+            # Keep the bubble glued to the cat while it's visible.
+            if self.bubble.isVisible():
+                self.bubble.update_position()
+            # Drive sparkle physics + park the shadow on the current surface.
+            self.effects.tick()
+            in_air = self.state == State.JUMPING
+            if in_air:
+                # Project the shadow straight down onto whatever surface
+                # the cat will land on (the planned target, or the ground).
+                if self._jump is not None and self._jump.target is not None:
+                    surface_y = self._jump.target.y + self.config.cat.y_offset_px
+                elif self._jump is not None:
+                    surface_y = self._jump.dst_y
+                else:
+                    surface_y = self._ground_y()
+                height = max(0, surface_y - self.y_bottom)
+            else:
+                surface_y = self._surface_y()
+                height = 0
+            self.effects.update_shadow(surface_y, height_above_surface=height)
 
-        # User came back → flee. Aborts mid-jump.
         if self.state not in (State.OFFSTAGE, State.FLEEING) and self._user_active():
             self._begin_flee()
             return
@@ -397,7 +518,7 @@ class CatScene(QObject):
         elif st == State.FLEEING:
             self._tick_flee()
 
-    # ---- transitions: enter / exit -------------------------------------
+    # ---- enter / exit --------------------------------------------------
 
     def _enter(self) -> None:
         self.lane = random.choice(self.lanes)
@@ -405,69 +526,109 @@ class CatScene(QObject):
         spawn_side = random.choice(edges)
         self.facing_left = spawn_side == "right"
         self.x = float(self._spawn_x(spawn_side))
-        self.target_x = self._exit_target_x(
-            "left" if spawn_side == "right" else "right"
-        )
+        # First wander target is somewhere in the interior — the cat walks in,
+        # then keeps wandering until the user becomes active (FLEEING) or the
+        # actor is disabled. No more "walk-across-then-respawn" loop.
+        self.target_x = self._pick_wander_target()
         self.frame_idx = 0
-        self._current_platform = None
-        self._refresh_platforms()
+        self._current_seg = None
+        self.y_bottom = self._ground_y()
+        self._refresh_segments()
         frames = self._walk_left if self.facing_left else self._walk_right
         self.cat.set_pixmap(frames[0])
         self.cat.move_to(int(self.x), self._surface_y())
         self.cat.show()
         self._set_state(State.WALKING)
+        # Greet the world ~half the time on entry.
+        if random.random() < 0.5:
+            self._say(line_for("enter"))
 
     def _exit_now(self) -> None:
         self.cat.hide()
+        self.bubble.hide()
+        self.effects.hide_all()
         self._jump = None
-        self._current_platform = None
+        self._current_seg = None
         self._set_state(State.OFFSTAGE)
+
+    def summon_to(self, x: int, y: int) -> None:
+        """Tray-driven teleport. Snap the cat to (x, y) on the lane ground
+        (we don't yet teleport onto a window). Shows a happy bubble."""
+        self.x = float(x - self.cat.width() // 2)
+        self._current_seg = None
+        self.y_bottom = self._ground_y()
+        # Pick a fresh wander target so the cat starts walking right after.
+        self.target_x = self._pick_wander_target()
+        self.facing_left = self.target_x < self.x
+        self.frame_idx = 0
+        self._jump = None
+        self._refresh_segments()
+        self.cat.move_to(int(self.x), self._surface_y())
+        if not self.cat.isVisible():
+            self.cat.show()
+        self._set_state(State.WALKING)
+        self._say(line_for("happy"))
+
+    # ---- speech bubble convenience ------------------------------------
+
+    def _say(self, text: str, *, duration_ms: int = 1800) -> None:
+        scale = max(2, int(round(self.config.cat.scale)))
+        self.bubble.say(text, scale=scale, duration_ms=duration_ms)
 
     # ---- WALKING -------------------------------------------------------
 
     def _tick_walk(self) -> None:
-        # Platform vanished underneath us between polls → fall.
-        if self._current_platform is None and self.y_bottom != self._ground_y():
-            # Shouldn't normally happen; reset y for safety.
+        if self._current_seg is None and self.y_bottom != self._ground_y():
             self.y_bottom = self._ground_y()
 
         if self._has_clearance_to_rest():
             r = random.random()
-            if r < LIE_CHANCE_PER_TICK:
+            lie_p = self._lie_chance()
+            sit_p = self._sit_chance()
+            if r < lie_p:
                 self._begin_lie()
                 return
-            if r < LIE_CHANCE_PER_TICK + SIT_CHANCE_PER_TICK:
+            if r < lie_p + sit_p:
                 self._begin_sit()
                 return
 
-        if random.random() < JUMP_CHANCE_PER_TICK:
+        if random.random() < self._jump_chance():
             choice = self._choose_jump_target()
             if choice is not None:
                 self._begin_prep(choice)
                 return
 
         hold = self._walk_hold()
-        mult = self.config.cat.walk_stride_multiplier
+        mult = self.config.cat.walk_stride_multiplier * self._walk_pace_factor()
         delta = self._delta_for_tick(self.config.cat.walk_frame_deltas, hold) * mult
         new_x = self.x + (-delta if self.facing_left else delta)
 
-        # Stepping off the current platform's edge → fall.
-        if self._current_platform is not None:
-            p = self._current_platform
+        # Stepping off the current segment's edge → fall.
+        if self._current_seg is not None:
+            s = self._current_seg
             cx_new = new_x + self.cat.width() / 2
-            if cx_new < p.x1 or cx_new > p.x2:
+            if cx_new < s.x1 or cx_new > s.x2:
                 self._begin_fall(new_x)
                 return
 
         self.x = new_x
         self._draw_walk()
 
-        # Lane exit only applies when on ground.
-        if self._current_platform is None:
-            if (not self.facing_left and self.x >= self.target_x) or (
-                self.facing_left and self.x <= self.target_x
-            ):
-                self._exit_now()
+        if self._current_seg is not None:
+            return  # platform-bound walking ignores wander target
+
+        # On ground: when we reach the wander target, pick a new one and
+        # flip facing if needed. The cat keeps wandering until the user
+        # becomes active (which routes through _begin_flee) or is disabled.
+        reached = (
+            (not self.facing_left and self.x >= self.target_x)
+            or (self.facing_left and self.x <= self.target_x)
+        )
+        if not reached:
+            return
+        self.target_x = self._pick_wander_target()
+        self.facing_left = self.target_x < self.x
+        self.frame_idx = 0
 
     def _draw_walk(self) -> None:
         frames = self._walk_left if self.facing_left else self._walk_right
@@ -486,6 +647,8 @@ class CatScene(QObject):
         self.cat.set_pixmap(frames[0])
         self.cat.move_to(int(self.x), self._surface_y())
         self._set_state(State.LYING)
+        if random.random() < 0.6:
+            self._say(line_for("lie"), duration_ms=2400)
 
     def _tick_lie(self) -> None:
         self.lie_ticks_left -= 1
@@ -503,6 +666,8 @@ class CatScene(QObject):
         self.cat.set_pixmap(self._sit[0])
         self.cat.move_to(int(self.x), self._surface_y())
         self._set_state(State.SITTING)
+        if random.random() < 0.5:
+            self._say(line_for("sit"))
 
     def _tick_sit(self) -> None:
         self.sit_ticks_left -= 1
@@ -516,20 +681,18 @@ class CatScene(QObject):
 
     # ---- JUMP ----------------------------------------------------------
 
-    def _begin_prep(self, choice: tuple[Platform | None, float, int]) -> None:
+    def _begin_prep(self, choice: tuple[WalkSegment | None, float, int]) -> None:
         target, dst_center_x, dst_y = choice
-        cx = self.x + self.cat.width() / 2
+        cw = self.cat.width()
+        cx = self.x + cw / 2
         self.facing_left = dst_center_x < cx
 
         src_x = float(self.x)
         src_y = self._surface_y()
-        dst_x = dst_center_x - self.cat.width() / 2
+        dst_x = dst_center_x - cw / 2
         dx = abs(dst_center_x - cx)
         ticks = max(8, int(dx / JUMP_HORIZ_SPEED_PX))
 
-        # Apex must clear the higher of the two endpoints by JUMP_PEAK_BASE_PX,
-        # plus a bit extra proportional to dx. Translate "screen y of apex"
-        # into the parabola's `peak_dy` (= apex offset from midpoint y).
         peak_above = JUMP_PEAK_BASE_PX + int(JUMP_PEAK_PER_DX * dx)
         peak_dy = -peak_above - int(abs(src_y - dst_y) / 2)
 
@@ -545,6 +708,8 @@ class CatScene(QObject):
         self.frame_idx = 0
         self._draw_jump_static()
         self._set_state(State.PREP_JUMP)
+        if random.random() < 0.25:
+            self._say(line_for("prep"), duration_ms=1200)
 
     def _tick_prep(self) -> None:
         self._prep_tick += 1
@@ -579,16 +744,44 @@ class CatScene(QObject):
         self.cat.move_to(int(self.x), self.y_bottom)
 
         if t >= 1.0:
-            self._current_platform = self._jump.target
-            self._jump = None
+            self._land_on_target()
+
+    def _land_on_target(self) -> None:
+        """Resolve the planned target against the current segments at landing.
+        If the target window has closed/moved/got covered, fall to whatever's
+        underneath instead of teleporting to a stale rect."""
+        plan = self._jump
+        self._jump = None
+        cw = self.cat.width()
+        cx = int(self.x + cw / 2)
+
+        if plan is None or plan.target is None:
+            # Target was the floor — done.
+            self._current_seg = None
             self._begin_land()
+            return
+
+        still = next(
+            (s for s in self._segments
+             if s.hwnd == plan.target.hwnd and s.contains_x(cx)),
+            None,
+        )
+        if still is None:
+            # Planned segment vanished by landing time. Fall.
+            self._begin_fall(self.x)
+            return
+        self._current_seg = still
+        self._begin_land()
 
     def _begin_fall(self, new_x: float) -> None:
-        """Step-off-the-edge transition. Build a downward arc to whatever
-        platform (or the floor) is below the new_x point."""
-        cx = new_x + self.cat.width() / 2
+        """Step-off-the-edge or rug-pulled fall: build a downward arc to
+        whatever is below the new_x point."""
+        cw = self.cat.width()
+        cx = int(new_x + cw / 2)
         cur_y = self._surface_y()
-        below = find_platform_under(int(cx), self._platforms_in_lane(), cur_y + 4)
+        below = find_segment_under(
+            cx, self._segments, cur_y + 4, min_width=max(40, cw - 8),
+        )
         if below is not None:
             target = below
             dst_y = below.y + self.config.cat.y_offset_px
@@ -620,10 +813,18 @@ class CatScene(QObject):
         self._land_tick = 0
         self.cat.move_to(int(self.x), self._surface_y())
         self._set_state(State.LANDING)
+        # Sparkle burst at the feet on every landing.
+        landing_x = int(self.x + self.cat.width() / 2)
+        landing_y = int(self._surface_y())
+        self.effects.burst_sparkles(
+            landing_x, landing_y,
+            scale=max(2, int(round(self.config.cat.scale))),
+        )
+        if random.random() < 0.3:
+            self._say(line_for("land"), duration_ms=900)
 
     def _tick_land(self) -> None:
         self._land_tick += 1
-        # Quick "settle" using stand frames so the cat clearly stops moving.
         frames = self._stand_left if self.facing_left else self._stand_right
         idx = self._land_tick % max(1, len(frames))
         self.cat.set_pixmap(frames[idx])
@@ -634,17 +835,18 @@ class CatScene(QObject):
     # ---- FLEE ----------------------------------------------------------
 
     def _begin_flee(self) -> None:
-        # Mid-air? Snap to floor instantly — no pretty fall during a panic.
         if self.state in (State.JUMPING, State.PREP_JUMP, State.LANDING):
             self._jump = None
-            self._current_platform = None
+            self._current_seg = None
             self.y_bottom = self._ground_y()
         else:
-            self._current_platform = None
+            self._current_seg = None
         self.exit_side = self._nearest_external_edge()
         self.facing_left = self.exit_side == "left"
         self.target_x = self._exit_target_x(self.exit_side)
         self.frame_idx = 0
+        # Cat doesn't talk while sprinting away.
+        self.bubble.hide()
         self._set_state(State.FLEEING)
 
     def _tick_flee(self) -> None:
