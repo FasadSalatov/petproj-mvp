@@ -18,6 +18,8 @@ Output tags (our project convention, not PixelLab's names):
     lie     ← seated-on-belly-idle (east)
     sit     ← sitting (south)           — frontal projection, no mirroring needed
     jump    ← jumping (east)            — used by cat_scene for prep / air / land
+    angry   ← acting_angry (east)       — shown on flee + extreme hunger
+    groom   ← licking (east)            — occasional self-grooming idle
 """
 from __future__ import annotations
 
@@ -52,6 +54,8 @@ ANIMS: list[AnimSpec] = [
     AnimSpec("lie",   "lying_on_belly-",     "east",  10, "pingpong"),
     AnimSpec("sit",   "sitting_down-",       "south", 8,  "pingpong"),
     AnimSpec("jump",  "jumping-",            "east",  8,  "forward"),
+    AnimSpec("angry", "acting_angry-",       "east",  7,  "pingpong"),
+    AnimSpec("groom", "licking-",            "east",  12, "forward"),
 ]
 
 

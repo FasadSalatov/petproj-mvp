@@ -1,17 +1,18 @@
 """Entry point for the petproj MVP.
 
-Launches all configured actors (person, cat, ...) — each one a transparent
+Launches all configured actors (person, 1..N cats) — each one a transparent
 always-on-top scene that triggers on user idle. The system-tray icon
-exposes Config, Summon, Reload sprites, and Quit. A global hotkey
-(Ctrl+Shift+H) hides/unhides everything in one keypress (boss key).
+exposes Config, Summon, Feed, Drop treat, Pomodoro, Skin, Achievements,
+Cat count, Boss-key (Ctrl+Shift+H) and Quit.
 """
 import os
 import sys
 
 from PyQt6.QtCore import QSize, Qt
 from PyQt6.QtGui import QCursor, QIcon
-from PyQt6.QtWidgets import QApplication, QMenu, QSystemTrayIcon
+from PyQt6.QtWidgets import QApplication, QMenu, QMessageBox, QSystemTrayIcon
 
+from achievements import AchievementTracker
 from cat_scene import CatScene
 from config import Config
 from config_window import ConfigWindow
@@ -19,6 +20,9 @@ from hotkeys import GlobalHotkey
 from scene import ASSETS_DIR, Scene
 from skins import SKINS
 from spritesheet import SpriteSheet
+
+MAX_CATS = 4
+TREAT_OFFSET_PX = 80     # stagger between treats when several cats hunt
 
 
 def _build_tray_icon() -> QIcon:
@@ -32,12 +36,14 @@ def _build_tray_icon() -> QIcon:
 class TrayController:
     def __init__(
         self, app: QApplication, config: Config,
-        person_scene: Scene, cat_scene: CatScene,
+        person_scene: Scene, cat_scenes: list[CatScene],
+        achievements: AchievementTracker,
     ) -> None:
         self.app = app
         self.config = config
         self.person_scene = person_scene
-        self.cat_scene = cat_scene
+        self.cat_scenes = cat_scenes
+        self.achievements = achievements
         self._config_window: ConfigWindow | None = None
         self._hidden_by_boss_key = False
 
@@ -54,9 +60,23 @@ class TrayController:
         self.treat_action = self.menu.addAction("Drop treat at cursor")
         self.treat_action.triggered.connect(self._on_drop_treat)
         self.menu.addSeparator()
+
         self.pomodoro_action = self.menu.addAction("Start Pomodoro (25/5)")
         self.pomodoro_action.triggered.connect(self._on_toggle_pomodoro)
+
+        # Cat count submenu (live-applied).
+        self.count_menu = self.menu.addMenu("Cat count")
+        self._count_actions = []
+        for n in range(1, MAX_CATS + 1):
+            act = self.count_menu.addAction(str(n))
+            act.setCheckable(True)
+            act.setChecked(n == self.config.cat.count)
+            act.triggered.connect(lambda _c=False, n=n: self._on_set_cat_count(n))
+            self._count_actions.append(act)
+
+        # Skins submenu.
         self.skins_menu = self.menu.addMenu("Skin")
+        self._skin_actions = []
         for skin in SKINS:
             act = self.skins_menu.addAction(skin.name)
             act.setCheckable(True)
@@ -64,6 +84,8 @@ class TrayController:
             act.triggered.connect(
                 lambda _checked=False, name=skin.name: self._on_pick_skin(name)
             )
+            self._skin_actions.append(act)
+
         self.menu.addSeparator()
         self.achievements_action = self.menu.addAction("Achievements…")
         self.achievements_action.triggered.connect(self._on_show_achievements)
@@ -81,9 +103,13 @@ class TrayController:
         self.tray.activated.connect(self._on_activated)
         self.tray.show()
 
+    # ---- helpers ----------------------------------------------------
+
     def _refresh_tooltip(self) -> None:
         name = self.config.cat.name or "petproj-mvp"
-        self.tray.setToolTip(f"{name} — petproj-mvp")
+        n = len(self.cat_scenes)
+        suffix = "" if n <= 1 else f" ×{n}"
+        self.tray.setToolTip(f"{name}{suffix} — petproj-mvp")
 
     def _open_config_window(self) -> None:
         if self._config_window is not None and self._config_window.isVisible():
@@ -98,88 +124,137 @@ class TrayController:
     def _on_config_changed(self, key: str) -> None:
         if key == "monitors.multi_monitor":
             self.person_scene.set_multi_monitor(self.config.monitors.multi_monitor)
-            self.cat_scene.set_multi_monitor(self.config.monitors.multi_monitor)
+            for c in self.cat_scenes:
+                c.set_multi_monitor(self.config.monitors.multi_monitor)
         elif key == "cat.scale":
-            self.cat_scene.set_scale(self.config.cat.scale)
+            for c in self.cat_scenes:
+                c.set_scale(self.config.cat.scale)
         elif key == "cat.name":
             self._refresh_tooltip()
 
     def _on_step(self) -> None:
         self.person_scene.step_one_frame()
-        self.cat_scene.step_one_frame()
+        for c in self.cat_scenes:
+            c.step_one_frame()
 
     def _on_reload(self) -> None:
         try:
-            self.cat_scene.reload_sprite()
-            print("[main] cat sprite reloaded", flush=True)
+            for c in self.cat_scenes:
+                c.reload_sprite()
+            print("[main] cat sprites reloaded", flush=True)
         except Exception as e:
             print(f"[main] reload failed: {e}", flush=True)
+
+    # ---- per-action implementations ---------------------------------
 
     def _on_summon(self) -> None:
         if not self.config.actor_enabled("cat"):
             return
         pos = QCursor.pos()
-        self.cat_scene.summon_to(pos.x(), pos.y())
+        for i, c in enumerate(self.cat_scenes):
+            # Stagger the cats horizontally so they don't pile up in one spot.
+            offset = (i - (len(self.cat_scenes) - 1) / 2) * 60
+            c.summon_to(int(pos.x() + offset), pos.y())
 
     def _on_feed(self) -> None:
         if not self.config.actor_enabled("cat"):
             return
-        self.cat_scene.feed()
+        for c in self.cat_scenes:
+            c.feed()
 
     def _on_drop_treat(self) -> None:
         if not self.config.actor_enabled("cat"):
             return
-        self.cat_scene.drop_treat_at(QCursor.pos().x())
+        x = QCursor.pos().x()
+        for i, c in enumerate(self.cat_scenes):
+            # Different x per cat so each has its own treat to chase.
+            stagger = (i - (len(self.cat_scenes) - 1) / 2) * TREAT_OFFSET_PX
+            c.drop_treat_at(int(x + stagger))
 
     def _on_toggle_pomodoro(self) -> None:
-        if self.cat_scene._pomodoro_phase == "off":
-            self.cat_scene.start_pomodoro(25, 5)
-            self.pomodoro_action.setText("Stop Pomodoro")
-        else:
-            self.cat_scene.stop_pomodoro()
+        # All cats run their own pomodoro counter — toggle them in sync.
+        any_on = any(c._pomodoro_phase != "off" for c in self.cat_scenes)
+        if any_on:
+            for c in self.cat_scenes:
+                c.stop_pomodoro()
             self.pomodoro_action.setText("Start Pomodoro (25/5)")
+        else:
+            for c in self.cat_scenes:
+                c.start_pomodoro(25, 5)
+            self.pomodoro_action.setText("Stop Pomodoro")
 
     def _on_pick_skin(self, name: str) -> None:
-        self.cat_scene.set_skin(name)
-        for act in self.skins_menu.actions():
+        for c in self.cat_scenes:
+            c.set_skin(name)
+        for act in self._skin_actions:
             act.setChecked(act.text() == name)
 
     def _on_show_achievements(self) -> None:
-        # Lightweight tooltip-style dump: every line is "label — locked/unlocked".
-        from PyQt6.QtWidgets import QMessageBox
         rows = []
-        for ach, unlocked, value in self.cat_scene.achievements.all_progress():
+        for ach, unlocked, value in self.achievements.all_progress():
             mark = "[x]" if unlocked else "[ ]"
             rows.append(f"{mark}  {ach.label}  ({int(value)}/{ach.threshold} {ach.stat})")
         QMessageBox.information(None, "Achievements", "\n".join(rows))
 
+    def _on_set_cat_count(self, n: int) -> None:
+        n = max(1, min(MAX_CATS, n))
+        self.config.cat.count = n
+        self.config.save()
+        self._resize_cats_to(n)
+        for act in self._count_actions:
+            act.setChecked(act.text() == str(n))
+        self._refresh_tooltip()
+
+    def _resize_cats_to(self, n: int) -> None:
+        # Shrink: stop and discard surplus cats.
+        while len(self.cat_scenes) > n:
+            cat = self.cat_scenes.pop()
+            cat.timer.stop()
+            cat.cat.hide()
+            cat.bubble.hide()
+            cat.effects.hide_all()
+            cat.deleteLater()
+        # Grow: spawn more, sharing the achievements tracker.
+        while len(self.cat_scenes) < n:
+            idx = len(self.cat_scenes)
+            scene = CatScene(
+                self.config,
+                achievements=self.achievements,
+                instance_id=idx,
+            )
+            scene.state_changed.connect(
+                lambda s, i=idx: print(f"[cat{i}] -> {s}", flush=True)
+            )
+            self.cat_scenes.append(scene)
+
+    # ---- boss key & quit --------------------------------------------
+
     def toggle_boss_key(self) -> None:
-        """Boss key: hide both scenes immediately and reset them to OFFSTAGE
-        so the cat doesn't keep walking invisibly. Toggle again to bring
-        them back — they re-enter from an external edge on the next idle
-        tick, just like a fresh launch."""
         if self._hidden_by_boss_key:
             self._hidden_by_boss_key = False
             self.boss_action.setText("Hide all (Ctrl+Shift+H)")
-            self.cat_scene.timer.start(self.cat_scene.timer.interval())
+            for c in self.cat_scenes:
+                c.timer.start(c.timer.interval())
             self.person_scene.timer.start(self.person_scene.timer.interval())
         else:
             self._hidden_by_boss_key = True
             self.boss_action.setText("Show all (Ctrl+Shift+H)")
-            self.cat_scene.timer.stop()
+            for c in self.cat_scenes:
+                c.timer.stop()
             self.person_scene.timer.stop()
-            # Force both scenes off-stage so resuming them is clean.
-            self.cat_scene._exit_now()
+            for c in self.cat_scenes:
+                c._exit_now()
             self.person_scene._exit()
 
     def _on_quit(self) -> None:
         self.person_scene.timer.stop()
         self.person_scene.person.hide()
         self.person_scene._hide_props()
-        self.cat_scene.timer.stop()
-        self.cat_scene.cat.hide()
-        self.cat_scene.bubble.hide()
-        self.cat_scene.effects.hide_all()
+        for c in self.cat_scenes:
+            c.timer.stop()
+            c.cat.hide()
+            c.bubble.hide()
+            c.effects.hide_all()
         if self._config_window is not None:
             self._config_window.close()
         self.tray.hide()
@@ -196,19 +271,27 @@ def main() -> int:
 
     config = Config.load()
     person_scene = Scene(config)
-    cat_scene = CatScene(config)
+
+    achievements = AchievementTracker()
+    initial_count = max(1, min(MAX_CATS, int(config.cat.count or 1)))
+    cat_scenes: list[CatScene] = []
+    for idx in range(initial_count):
+        cs = CatScene(config, achievements=achievements, instance_id=idx)
+        cs.state_changed.connect(
+            lambda s, i=idx: print(f"[cat{i}] -> {s}", flush=True)
+        )
+        cat_scenes.append(cs)
+
     person_scene.state_changed.connect(lambda s: print(f"[person] -> {s}", flush=True))
-    cat_scene.state_changed.connect(lambda s: print(f"[cat]    -> {s}", flush=True))
 
     tray: TrayController | None = None
     if QSystemTrayIcon.isSystemTrayAvailable():
-        tray = TrayController(app, config, person_scene, cat_scene)
+        tray = TrayController(app, config, person_scene, cat_scenes, achievements)
         app._tray = tray  # type: ignore[attr-defined]
     else:
         print("[main] system tray not available — quit via Ctrl+C in console",
               flush=True)
 
-    # Boss key: Ctrl+Shift+H toggles all-hidden mode. No-op when no tray.
     if tray is not None:
         GlobalHotkey.register_all(app, [
             (("ctrl", "shift", "h"), tray.toggle_boss_key),

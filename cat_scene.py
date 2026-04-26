@@ -130,6 +130,23 @@ POMODORO_TICK_PER_SECOND = 1000 // TICK_MS  # ticks in a second
 # its title bar (if on ground at the right y) or initiates a jump onto it.
 ACTIVE_WINDOW_VISIT_PER_TICK = 0.005   # ~1 attempt every ~12s while walking
 
+# Drag & drop: a long press of LBUTTON while the cursor sits over the cat
+# enters DRAGGED. Quick clicks (under DRAG_HOLD_TICKS) just count as pets.
+DRAG_HOLD_TICKS = 5      # ~300ms — long enough to filter out normal clicks
+DRAG_FRAME_HOLD = 6
+
+# Grooming: occasional self-licking idle. Rolled in alongside lie/sit on
+# ground or wide segments.
+GROOM_FRAME_HOLD = 5
+GROOM_CHANCE_PER_TICK = 0.0025
+GROOM_DURATION_TICKS = 110  # ~6.6s
+
+# "Angry puff" lead-in to fleeing: cat plays the angry animation for
+# ~480ms before sprinting away. Skipped when the cat is fleeing from a
+# window segment (it'd look weird teleporting to the floor first).
+ANGRY_LEAD_TICKS = 8
+ANGRY_FRAME_HOLD = 4
+
 ACTOR_NAME = "cat"
 
 
@@ -144,6 +161,8 @@ class State(Enum):
     LANDING = auto()
     TREAT_HUNT = auto()      # walking straight to a dropped treat
     EATING = auto()          # consuming the treat (sit pose for ~5s)
+    DRAGGED = auto()         # held by the user's cursor — follows mouse
+    GROOMING = auto()        # cat-licking idle behaviour
 
 
 @dataclass
@@ -161,9 +180,13 @@ class _JumpPlan:
 class CatScene(QObject):
     state_changed = pyqtSignal(str)
 
-    def __init__(self, config: Config | None = None) -> None:
+    def __init__(self, config: Config | None = None,
+                 *,
+                 achievements: "AchievementTracker | None" = None,
+                 instance_id: int = 0) -> None:
         super().__init__()
         self.config = config or Config()
+        self.instance_id = instance_id
         self._all_lanes = discover_lanes()
         self.lanes = self._select_active_lanes()
         self.lane: Lane = self.lanes[0]
@@ -176,7 +199,12 @@ class CatScene(QObject):
         self.bubble = SpeechBubble(self.cat)
         self.effects = EffectsLayer(self.cat)
         self.effects.configure_scale(max(1, int(round(self.config.cat.scale))))
-        self.achievements = AchievementTracker()
+        # Achievements are shared across all cat instances when one is given;
+        # otherwise each cat keeps its own tracker (single-instance default).
+        self.achievements = achievements or AchievementTracker()
+        # Per-instance enter delay so spawned cats stagger their entrance
+        # instead of all walking in lockstep.
+        self._enter_delay_left = max(0, instance_id) * 8
 
         self.state = State.OFFSTAGE
         self.x = 0.0
@@ -205,9 +233,14 @@ class CatScene(QObject):
         # Treat hunt timing (drops are tray-triggered).
         self._treat_eat_left = 0
         self._treat_age_ticks = 0
-        # Click-to-pet: rising-edge detection for LBUTTON.
+        # Grooming + angry-puff timers.
+        self._groom_left_ticks = 0
+        self._angry_lead_ticks = 0
+        # Click-to-pet + drag detection: rising-edge LBUTTON tracking.
         self._last_lbutton_pressed: bool = False
         self._petted_count: int = 0
+        self._press_started_over_cat: bool = False
+        self._press_held_ticks: int = 0
         # CPU awareness state.
         self._cpu_pct: float = 25.0
         self._cpu_poll_tick: int = 0
@@ -260,6 +293,20 @@ class CatScene(QObject):
             self._jump_right = self._run_right
             self._jump_left = self._run_left
             self._has_jump_anim = False
+        # Mood-frame additions; both fall back gracefully when sheets were
+        # built without these tags.
+        if "angry" in s.tags:
+            self._angry_right = s.animation("angry", scale=scale)
+            self._angry_left = s.animation("angry", scale=scale, mirror=True)
+        else:
+            self._angry_right = self._stand_right
+            self._angry_left = self._stand_left
+        if "groom" in s.tags:
+            self._groom_right = s.animation("groom", scale=scale)
+            self._groom_left = s.animation("groom", scale=scale, mirror=True)
+        else:
+            self._groom_right = self._sit
+            self._groom_left = self._sit
 
     def reload_sprite(self) -> None:
         self._base_sheet = SpriteSheet.load(os.path.join(ASSETS_DIR, "cat", "cat"))
@@ -642,8 +689,83 @@ class CatScene(QObject):
             State.LANDING: JUMP_FRAME_HOLD,
             State.TREAT_HUNT: self._walk_hold(),
             State.EATING: SIT_FRAME_HOLD,
+            State.DRAGGED: DRAG_FRAME_HOLD,
+            State.GROOMING: GROOM_FRAME_HOLD,
         }
         self._step_ticks_remaining = holds.get(self.state, 1)
+
+    # ---- drag & drop --------------------------------------------------
+
+    def _begin_drag(self) -> None:
+        """Promote a long LBUTTON hold-over-cat into a drag. Cancels any
+        in-flight jump or treat hunt and starts following the cursor."""
+        self._jump = None
+        self.effects.clear_treat()
+        self._current_seg = None
+        self.bubble.hide()
+        self.frame_idx = 0
+        self._set_state(State.DRAGGED)
+        # First-frame snap so the cat doesn't lag a tick behind the cursor.
+        self._tick_drag(snap=True)
+        self._say("?", duration_ms=1000)
+
+    def _tick_drag(self, *, snap: bool = False) -> None:
+        cursor = QCursor.pos()
+        new_x = cursor.x() - self.cat.width() / 2
+        new_y_bottom = cursor.y() + self.cat.height() // 2
+        # Face the direction we're being yanked.
+        if not snap:
+            if new_x < self.x - 1:
+                self.facing_left = True
+            elif new_x > self.x + 1:
+                self.facing_left = False
+        self.x = float(new_x)
+        self.y_bottom = int(new_y_bottom)
+        frames = self._stand_left if self.facing_left else self._stand_right
+        if not snap:
+            self.frame_idx = (self.frame_idx + 1) % (len(frames) * DRAG_FRAME_HOLD)
+        idx = (self.frame_idx // DRAG_FRAME_HOLD) % len(frames)
+        self.cat.set_pixmap(frames[idx])
+        # Render the cat with its bottom AT new_y_bottom: SpriteWidget.move_to
+        # subtracts height, so we pass new_y_bottom directly.
+        self.cat.move_to(int(self.x), self.y_bottom)
+
+    def _end_drag(self) -> None:
+        """Release: build a vertical fall plan from the cat's current
+        airborne position to whatever's below it (segment or floor)."""
+        cw = self.cat.width()
+        cur_x = self.x
+        cur_y = self.y_bottom
+        self._refresh_segments()
+        cx = int(cur_x + cw / 2)
+        below = find_segment_under(
+            cx, self._segments, cur_y + 4, min_width=max(40, cw - 8),
+        )
+        if below is not None:
+            target = below
+            dst_y = below.y + self.config.cat.y_offset_px
+        else:
+            target = None
+            dst_y = self._ground_y()
+        # If we're already at/under the destination y (cat dropped below the
+        # screen, say), snap and land cleanly.
+        if dst_y <= cur_y + 4:
+            self._current_seg = target
+            self.y_bottom = dst_y
+            self._begin_land()
+            return
+        ticks = max(8, int((dst_y - cur_y) / 10))
+        self._jump = _JumpPlan(
+            src_x=float(cur_x), src_y=int(cur_y),
+            dst_x=float(cur_x), dst_y=int(dst_y),
+            target=target,
+            total_ticks=ticks,
+            peak_dy=-FALL_HOP_PEAK_PX,
+            facing_left=self.facing_left,
+        )
+        self._jump_tick = 0
+        self.frame_idx = 0
+        self._set_state(State.JUMPING)
 
     def _tick_inner(self) -> None:
         if not self.config.actor_enabled(ACTOR_NAME):
@@ -696,12 +818,18 @@ class CatScene(QObject):
                 height = 0
             self.effects.update_shadow(surface_y, height_above_surface=height)
 
-        if self.state not in (State.OFFSTAGE, State.FLEEING) and self._user_active():
+        if (self.state not in (State.OFFSTAGE, State.FLEEING, State.DRAGGED)
+                and self._user_active()):
             self._begin_flee()
             return
 
         st = self.state
         if st == State.OFFSTAGE:
+            # Stagger multi-cat entrances: each instance gets a tiny delay
+            # equal to instance_id × 8 ticks the FIRST time it enters.
+            if self._enter_delay_left > 0:
+                self._enter_delay_left -= 1
+                return
             if self._user_idle_long_enough():
                 self._enter()
         elif st == State.WALKING:
@@ -722,6 +850,10 @@ class CatScene(QObject):
             self._tick_treat_hunt()
         elif st == State.EATING:
             self._tick_eat()
+        elif st == State.DRAGGED:
+            self._tick_drag()
+        elif st == State.GROOMING:
+            self._tick_groom()
 
     # ---- enter / exit --------------------------------------------------
 
@@ -759,20 +891,43 @@ class CatScene(QObject):
     # ---- click-to-pet -------------------------------------------------
 
     def _maybe_register_pet(self) -> None:
-        """LBUTTON edge detection: when the user left-clicks while the
-        cursor is over the cat, count it as a pet. The cat is click-through
-        so we don't actually swallow the click — we just observe it."""
+        """LBUTTON tracking: short clicks-over-cat = pets; long holds-over-cat
+        promote to drag mode. The cat is click-through so we don't swallow
+        the click — we just observe input state via GetAsyncKeyState."""
         if _GetAsyncKeyState is None or not self.cat.isVisible():
             return
-        # GetAsyncKeyState returns a SHORT; high bit set when key pressed.
         pressed = bool(_GetAsyncKeyState(_VK_LBUTTON) & 0x8000)
+        cursor = QCursor.pos()
+        over_cat = (
+            self.cat.x() <= cursor.x() <= self.cat.x() + self.cat.width()
+            and self.cat.y() <= cursor.y() <= self.cat.y() + self.cat.height()
+        )
+
+        # Already dragging: only release matters.
+        if self.state == State.DRAGGED:
+            if not pressed and self._last_lbutton_pressed:
+                self._end_drag()
+            self._last_lbutton_pressed = pressed
+            return
+
         if pressed and not self._last_lbutton_pressed:
-            cursor = QCursor.pos()
-            cx = self.cat.x()
-            cy = self.cat.y()
-            if (cx <= cursor.x() <= cx + self.cat.width()
-                    and cy <= cursor.y() <= cy + self.cat.height()):
+            # Rising edge — record whether the press started over the cat.
+            self._press_started_over_cat = over_cat
+            self._press_held_ticks = 0
+        elif pressed and self._press_started_over_cat:
+            self._press_held_ticks += 1
+            if self._press_held_ticks >= DRAG_HOLD_TICKS:
+                self._begin_drag()
+                self._last_lbutton_pressed = pressed
+                return
+        elif not pressed and self._last_lbutton_pressed:
+            # Falling edge — short clicks count as pets.
+            if (self._press_started_over_cat
+                    and self._press_held_ticks < DRAG_HOLD_TICKS
+                    and over_cat):
                 self._on_petted()
+            self._press_started_over_cat = False
+            self._press_held_ticks = 0
         self._last_lbutton_pressed = pressed
 
     def _on_petted(self) -> None:
@@ -907,6 +1062,9 @@ class CatScene(QObject):
             if r < lie_p + sit_p:
                 self._begin_sit()
                 return
+            if r < lie_p + sit_p + GROOM_CHANCE_PER_TICK:
+                self._begin_groom()
+                return
 
         # Active-window watch: occasionally aim straight for the user's
         # foreground window's title bar. Falls through silently if it's
@@ -993,6 +1151,26 @@ class CatScene(QObject):
         self._set_state(State.SITTING)
         if random.random() < 0.5:
             self._say(line_for("sit"))
+
+    def _begin_groom(self) -> None:
+        self._groom_left_ticks = GROOM_DURATION_TICKS
+        self.frame_idx = 0
+        frames = self._groom_left if self.facing_left else self._groom_right
+        if frames:
+            self.cat.set_pixmap(frames[0])
+        self.cat.move_to(int(self.x), self._surface_y())
+        self._set_state(State.GROOMING)
+
+    def _tick_groom(self) -> None:
+        self._groom_left_ticks -= 1
+        frames = self._groom_left if self.facing_left else self._groom_right
+        if frames:
+            self.frame_idx = (self.frame_idx + 1) % (len(frames) * GROOM_FRAME_HOLD)
+            idx = (self.frame_idx // GROOM_FRAME_HOLD) % len(frames)
+            self.cat.set_pixmap(frames[idx])
+        self.cat.move_to(int(self.x), self._surface_y())
+        if self._groom_left_ticks <= 0:
+            self._set_state(State.WALKING)
 
     def _tick_sit(self) -> None:
         self.sit_ticks_left -= 1
@@ -1163,6 +1341,7 @@ class CatScene(QObject):
     # ---- FLEE ----------------------------------------------------------
 
     def _begin_flee(self) -> None:
+        was_on_segment = self._current_seg is not None
         if self.state in (State.JUMPING, State.PREP_JUMP, State.LANDING):
             self._jump = None
             self._current_seg = None
@@ -1176,9 +1355,25 @@ class CatScene(QObject):
         self.target_x = self._exit_target_x(self.exit_side)
         self.frame_idx = 0
         self.bubble.hide()
+        # Puff up only if fleeing from solid ground; otherwise just sprint
+        # (a from-segment teleport-then-puff would look weird).
+        self._angry_lead_ticks = ANGRY_LEAD_TICKS if not was_on_segment else 0
         self._set_state(State.FLEEING)
 
     def _tick_flee(self) -> None:
+        # Angry puff: stand still for a few ticks playing the angry frames,
+        # then start sprinting. The cat looks momentarily startled before
+        # legging it, instead of teleporting straight into the run cycle.
+        if self._angry_lead_ticks > 0:
+            self._angry_lead_ticks -= 1
+            frames = self._angry_left if self.facing_left else self._angry_right
+            if frames:
+                self.frame_idx = (self.frame_idx + 1) % (len(frames) * ANGRY_FRAME_HOLD)
+                idx = (self.frame_idx // ANGRY_FRAME_HOLD) % len(frames)
+                self.cat.set_pixmap(frames[idx])
+                self.cat.move_to(int(self.x), self._ground_y())
+            return
+
         hold = self._run_hold()
         mult = self.config.cat.run_stride_multiplier
         delta = self._delta_for_tick(self.config.cat.run_frame_deltas, hold) * mult
@@ -1210,6 +1405,12 @@ class CatScene(QObject):
         elif st in (State.PREP_JUMP, State.JUMPING, State.LANDING):
             frames = self._jump_left if self.facing_left else self._jump_right
             hold = JUMP_FRAME_HOLD
+        elif st == State.DRAGGED:
+            frames = self._stand_left if self.facing_left else self._stand_right
+            hold = DRAG_FRAME_HOLD
+        elif st == State.GROOMING:
+            frames = self._groom_left if self.facing_left else self._groom_right
+            hold = GROOM_FRAME_HOLD
         else:
             frames = self._stand_right
             hold = 1
@@ -1218,5 +1419,7 @@ class CatScene(QObject):
         idx = (self.frame_idx // max(1, hold)) % len(frames)
         self.cat.set_pixmap(frames[idx])
         if st != State.OFFSTAGE:
-            y = self.y_bottom if st == State.JUMPING else self._surface_y()
+            y = (self.y_bottom
+                 if st in (State.JUMPING, State.DRAGGED)
+                 else self._surface_y())
             self.cat.move_to(int(self.x), y)
