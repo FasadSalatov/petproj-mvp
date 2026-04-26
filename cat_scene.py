@@ -210,9 +210,19 @@ class CatScene(QObject):
         self.cat.show()
         self._set_state(State.WALKING)
 
+    def _has_clearance_to_lie(self) -> int:
+        """Return True only when the whole cat sprite fits inside the visible
+        screen with a breathing-room margin on both sides — otherwise lying
+        down can leave the cat half-cropped at the edge."""
+        margin = self.cat.width() // 3   # ~33% of the cat's width as buffer
+        return (
+            self.x >= self.lane.full.left() + margin
+            and self.x + self.cat.width() <= self.lane.full.right() - margin
+        )
+
     def _tick_walk(self) -> None:
-        # Maybe stop and lie down occasionally.
-        if random.random() < LIE_CHANCE_PER_TICK:
+        # Maybe stop and lie down — but only if we're not too close to a screen edge.
+        if self._has_clearance_to_lie() and random.random() < LIE_CHANCE_PER_TICK:
             self._begin_lie()
             return
 
