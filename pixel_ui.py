@@ -802,6 +802,93 @@ class PixelHRule(QWidget):
         p.end()
 
 
+class PixelTitleBar(QWidget):
+    """Custom drag-to-move title strip with a pixel icon, title text and
+    minimise/close buttons. Replaces the native Win11 chrome on
+    frameless windows so the whole shell looks pixel-art."""
+
+    close_clicked = pyqtSignal()
+    minimize_clicked = pyqtSignal()
+
+    def __init__(self, title: str, icon_pixmap: QPixmap | None = None,
+                 scale: int = DEFAULT_SCALE,
+                 parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self._scale = scale
+        self._title = title
+        self._dragging = False
+        self._drag_offset = QPoint()
+        self._icon_pixmap = icon_pixmap
+        bar_h = scale * 14
+        self.setFixedHeight(bar_h)
+        self.setMouseTracking(True)
+        # Use a fixed-position layout: icon -> title -> stretch -> min -> close.
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(scale * 3, scale * 2, scale * 3, scale * 2)
+        layout.setSpacing(scale * 2)
+
+        icon_size = scale * 10
+        if icon_pixmap is not None and not icon_pixmap.isNull():
+            icon_label = QLabel()
+            scaled = icon_pixmap.scaled(
+                icon_size, icon_size,
+                Qt.AspectRatioMode.KeepAspectRatio,
+                Qt.TransformationMode.FastTransformation,
+            )
+            icon_label.setPixmap(scaled)
+            icon_label.setFixedSize(icon_size, icon_size)
+            icon_label.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+            layout.addWidget(icon_label, 0, Qt.AlignmentFlag.AlignVCenter)
+
+        self._title_label = PixelLabel(title, scale=scale + 1, color=THEME.paper)
+        self._title_label.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+        layout.addWidget(self._title_label, 0, Qt.AlignmentFlag.AlignVCenter)
+        layout.addStretch(1)
+
+        self._min_btn = PixelButton("-", scale=scale, padding_px=4)
+        self._min_btn.clicked.connect(self.minimize_clicked.emit)
+        layout.addWidget(self._min_btn, 0, Qt.AlignmentFlag.AlignVCenter)
+
+        self._close_btn = PixelButton("x", scale=scale, padding_px=4)
+        self._close_btn.clicked.connect(self.close_clicked.emit)
+        layout.addWidget(self._close_btn, 0, Qt.AlignmentFlag.AlignVCenter)
+
+    def setTitle(self, text: str) -> None:
+        self._title = text
+        self._title_label.setText(text)
+
+    def paintEvent(self, event: QPaintEvent) -> None:
+        p = QPainter(self)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing, False)
+        rect = self.rect()
+        p.fillRect(rect, THEME.accent_dim)
+        # 1-px highlight along the top, ink line along the bottom.
+        p.fillRect(rect.left(), rect.top(), rect.width(), self._scale,
+                   THEME.accent)
+        p.fillRect(rect.left(), rect.bottom() - self._scale + 1,
+                   rect.width(), self._scale, THEME.ink)
+        # Update the title's color in case the theme switched.
+        self._title_label.setColor(THEME.paper)
+        p.end()
+
+    def mousePressEvent(self, e: QMouseEvent) -> None:
+        if e.button() == Qt.MouseButton.LeftButton:
+            self._dragging = True
+            self._drag_offset = (
+                e.globalPosition().toPoint()
+                - self.window().frameGeometry().topLeft()
+            )
+
+    def mouseMoveEvent(self, e: QMouseEvent) -> None:
+        if self._dragging:
+            new_pos = e.globalPosition().toPoint() - self._drag_offset
+            self.window().move(new_pos)
+
+    def mouseReleaseEvent(self, e: QMouseEvent) -> None:
+        if e.button() == Qt.MouseButton.LeftButton:
+            self._dragging = False
+
+
 # ---- a few composition helpers -----------------------------------------
 
 class LabeledRow(QWidget):

@@ -32,7 +32,7 @@ from config import Config
 from pixel_ui import (
     DEFAULT_SCALE, LabeledRow, PixelButton, PixelCheckbox, PixelComboBox,
     PixelHRule, PixelLabel, PixelPanel, PixelProgress, PixelSlider,
-    PixelSpinBox, THEME, draw_text, measure_text,
+    PixelSpinBox, PixelTitleBar, THEME, draw_text, measure_text,
 )
 from skins import SKINS
 
@@ -67,9 +67,9 @@ class _Sidebar(QWidget):
         layout.setContentsMargins(DEFAULT_SCALE * 4, DEFAULT_SCALE * 4,
                                   DEFAULT_SCALE * 2, DEFAULT_SCALE * 4)
         layout.setSpacing(DEFAULT_SCALE * 3)
-        title = PixelLabel("petproj-mvp", scale=DEFAULT_SCALE + 1)
+        title = PixelLabel("hopper", scale=DEFAULT_SCALE + 1)
         layout.addWidget(title)
-        sub = PixelLabel("config", scale=DEFAULT_SCALE,
+        sub = PixelLabel("settings", scale=DEFAULT_SCALE,
                          color=QColor(THEME.accent_dim))
         layout.addWidget(sub)
         layout.addSpacing(DEFAULT_SCALE * 4)
@@ -98,8 +98,13 @@ class ConfigWindow(QDialog):
                  cat_scenes: list | None = None,
                  achievements: AchievementTracker | None = None) -> None:
         super().__init__()
-        self.setWindowTitle("petproj-mvp — Config")
-        self.setWindowFlag(Qt.WindowType.WindowStaysOnTopHint, True)
+        self.setWindowTitle("hopper · pixel pet")
+        # Frameless: we draw our own pixel-art title bar below.
+        self.setWindowFlags(
+            Qt.WindowType.Window
+            | Qt.WindowType.FramelessWindowHint
+            | Qt.WindowType.WindowStaysOnTopHint
+        )
         self.resize(WINDOW_W, WINDOW_H)
         # Cream paper background to match the bubble style.
         self.setStyleSheet(
@@ -123,10 +128,29 @@ class ConfigWindow(QDialog):
             "magnet":  _load_icon("magnet"),
         }
 
-        # ---- root layout: sidebar + content -------------------------
-        root = QHBoxLayout(self)
+        # ---- root layout: pixel title bar on top, content underneath
+        root = QVBoxLayout(self)
         root.setContentsMargins(0, 0, 0, 0)
         root.setSpacing(0)
+
+        head_path = os.path.join(ICONS_DIR, "cat_head.png")
+        head_pix = QPixmap(head_path) if os.path.exists(head_path) else None
+        self._title_bar = PixelTitleBar(
+            "hopper · pixel pet config",
+            icon_pixmap=head_pix,
+            scale=DEFAULT_SCALE,
+        )
+        self._title_bar.close_clicked.connect(self.close)
+        self._title_bar.minimize_clicked.connect(self.showMinimized)
+        if head_pix is not None and not head_pix.isNull():
+            self.setWindowIcon(QIcon(head_pix))
+        root.addWidget(self._title_bar)
+
+        # ---- inner: sidebar + content ------------------------------
+        inner = QWidget()
+        inner_layout = QHBoxLayout(inner)
+        inner_layout.setContentsMargins(0, 0, 0, 0)
+        inner_layout.setSpacing(0)
 
         tabs = [
             ("cat",          "fish"),
@@ -137,10 +161,10 @@ class ConfigWindow(QDialog):
             ("achievements", "trophy"),
         ]
         self._sidebar = _Sidebar(tabs, self._switch_tab)
-        root.addWidget(self._sidebar, 0)
+        inner_layout.addWidget(self._sidebar, 0)
 
         self._stack = QStackedWidget()
-        root.addWidget(self._stack, 1)
+        inner_layout.addWidget(self._stack, 1)
 
         # Build each tab's content.
         self._stack.addWidget(self._build_cat_tab())
@@ -150,6 +174,7 @@ class ConfigWindow(QDialog):
         self._stack.addWidget(self._build_stats_tab())
         self._stack.addWidget(self._build_achievements_tab())
 
+        root.addWidget(inner, 1)
         self._switch_tab(0)
 
         # Live updates for the Stats panel.

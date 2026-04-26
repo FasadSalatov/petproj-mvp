@@ -164,10 +164,10 @@ class TrayController:
     # ---- helpers ----------------------------------------------------
 
     def _refresh_tooltip(self) -> None:
-        name = self.config.cat.name or "petproj-mvp"
+        name = self.config.cat.name or "tabby"
         n = len(self.cat_scenes)
         suffix = "" if n <= 1 else f" ×{n}"
-        self.tray.setToolTip(f"{name}{suffix} — petproj-mvp")
+        self.tray.setToolTip(f"hopper · {name}{suffix}")
 
     def _open_config_window(self) -> None:
         if self._config_window is not None and self._config_window.isVisible():
@@ -353,6 +353,12 @@ def main() -> int:
 
     app = QApplication(sys.argv)
     app.setQuitOnLastWindowClosed(False)
+    app.setApplicationName("hopper")
+    app.setApplicationDisplayName("hopper · pixel pet")
+    # Window/taskbar icon picked up by Alt+Tab and the OS taskbar.
+    cat_head = os.path.join(ASSETS_DIR, "icons", "cat_head.png")
+    if os.path.exists(cat_head):
+        app.setWindowIcon(QIcon(cat_head))
 
     # Apply persisted theme + preload UI sounds before any pixel widget is built.
     set_theme(config.behaviour.theme or "light")
