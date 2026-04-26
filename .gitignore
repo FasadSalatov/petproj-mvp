@@ -27,6 +27,7 @@ assets/**/*.bak.*
 
 # PixelLab raw ZIP extraction workspace (regenerated when re-importing)
 assets/cat/_pixellab_zip/
+_pixellab_dl/
 
 # Generated previews (regen with `python preview_sprites.py`)
 preview/

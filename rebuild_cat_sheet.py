@@ -17,6 +17,7 @@ Output tags (our project convention, not PixelLab's names):
     run     ← running-8-frames (east)
     lie     ← seated-on-belly-idle (east)
     sit     ← sitting (south)           — frontal projection, no mirroring needed
+    jump    ← jumping (east)            — used by cat_scene for prep / air / land
 """
 from __future__ import annotations
 
@@ -45,11 +46,12 @@ class AnimSpec:
 # which differ from the template_animation_id (e.g. slow-run → running_slowly-,
 # sitting → sitting_down-). Multiple matches are disambiguated via frame_count.
 ANIMS: list[AnimSpec] = [
-    AnimSpec("stand", "animation-",          "east",  8,  "pingpong"),
+    AnimSpec("stand", "standing_up-",        "east",  9,  "pingpong"),
     AnimSpec("walk",  "running_slowly-",     "east",  8,  "forward"),
     AnimSpec("run",   "running-",            "east",  8,  "forward"),   # running-8-frames
-    AnimSpec("lie",   "resting_on_belly-",   "east",  10, "pingpong"),
+    AnimSpec("lie",   "lying_on_belly-",     "east",  10, "pingpong"),
     AnimSpec("sit",   "sitting_down-",       "south", 8,  "pingpong"),
+    AnimSpec("jump",  "jumping-",            "east",  8,  "forward"),
 ]
 
 
@@ -222,7 +224,8 @@ def main() -> int:
             "_notes": (
                 "Auto-trimmed per-animation by union bbox; padded to common "
                 f"({max_w}x{max_h}) with cat bottom-aligned in every frame. "
-                "Built from PixelLab character 70291340-ea9f-4598-8fea-24396034f439."
+                "Built from PixelLab character d5ffdf62-8497-4365-ae0e-6fc4aefb5d15 "
+                "(Tabby Hopper, side view, 64px, with jump animation)."
             ),
         },
     }
