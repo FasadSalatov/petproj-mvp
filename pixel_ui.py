@@ -18,7 +18,7 @@ Widgets exported:
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from types import SimpleNamespace
 from typing import Callable, Iterable
 
 from PyQt6.QtCore import (
@@ -29,30 +29,90 @@ from PyQt6.QtGui import (
     QResizeEvent,
 )
 from PyQt6.QtWidgets import (
-    QFrame, QHBoxLayout, QLabel, QSizePolicy, QVBoxLayout, QWidget,
+    QApplication, QFrame, QHBoxLayout, QLabel, QSizePolicy, QVBoxLayout,
+    QWidget,
 )
 
 from bubble import GLYPHS, GLYPH_H, GLYPH_SPACING, GLYPH_W
 
-
-# ---- theme --------------------------------------------------------------
-
-@dataclass(frozen=True)
-class PixelTheme:
-    ink: QColor = field(default_factory=lambda: QColor(20, 20, 20))
-    paper: QColor = field(default_factory=lambda: QColor(248, 246, 235))
-    paper_hover: QColor = field(default_factory=lambda: QColor(255, 252, 240))
-    paper_pressed: QColor = field(default_factory=lambda: QColor(228, 220, 195))
-    accent: QColor = field(default_factory=lambda: QColor(220, 130, 60))
-    accent_dim: QColor = field(default_factory=lambda: QColor(180, 100, 40))
-    panel_bg: QColor = field(default_factory=lambda: QColor(232, 226, 205))
-    fill_good: QColor = field(default_factory=lambda: QColor(120, 175, 90))
-    fill_warn: QColor = field(default_factory=lambda: QColor(220, 175, 70))
-    fill_bad: QColor = field(default_factory=lambda: QColor(210, 95, 70))
+try:
+    import sfx as _sfx
+except ImportError:
+    _sfx = None
 
 
-THEME = PixelTheme()
+# ---- theme (mutable in place so widgets see live updates) ---------------
+
+LIGHT_THEME = dict(
+    ink=QColor(20, 20, 20),
+    paper=QColor(248, 246, 235),
+    paper_hover=QColor(255, 252, 240),
+    paper_pressed=QColor(228, 220, 195),
+    accent=QColor(220, 130, 60),
+    accent_dim=QColor(180, 100, 40),
+    panel_bg=QColor(232, 226, 205),
+    fill_good=QColor(120, 175, 90),
+    fill_warn=QColor(220, 175, 70),
+    fill_bad=QColor(210, 95, 70),
+    window_bg=QColor(248, 246, 235),
+)
+
+DARK_THEME = dict(
+    ink=QColor(232, 228, 215),
+    paper=QColor(48, 44, 40),
+    paper_hover=QColor(64, 58, 52),
+    paper_pressed=QColor(36, 32, 28),
+    accent=QColor(232, 142, 70),
+    accent_dim=QColor(192, 110, 50),
+    panel_bg=QColor(38, 34, 30),
+    fill_good=QColor(120, 195, 100),
+    fill_warn=QColor(232, 188, 80),
+    fill_bad=QColor(232, 100, 80),
+    window_bg=QColor(28, 25, 22),
+)
+
+# Mutating attributes of THEME (rather than reassigning) keeps every widget
+# that imported this module's reference seeing the live values.
+THEME = SimpleNamespace(**LIGHT_THEME)
+
+
+def set_theme(name: str) -> None:
+    """Swap the global palette in place and force every visible widget to
+    repaint so the change is instant."""
+    values = DARK_THEME if name == "dark" else LIGHT_THEME
+    for k, v in values.items():
+        setattr(THEME, k, v)
+    app = QApplication.instance()
+    if app is not None:
+        for w in app.allWidgets():
+            w.update()
+
+
+def current_theme_name() -> str:
+    return "dark" if THEME.paper == DARK_THEME["paper"] else "light"
+
+
 DEFAULT_SCALE = 3        # one native pixel = 3 device pixels
+
+
+def _click() -> None:
+    if _sfx is not None:
+        _sfx.play("click")
+
+
+def _hover_sfx() -> None:
+    if _sfx is not None:
+        _sfx.play("hover")
+
+
+def _toggle_sfx(state: bool) -> None:
+    if _sfx is not None:
+        _sfx.play("toggle_on" if state else "toggle_off")
+
+
+def _slider_sfx() -> None:
+    if _sfx is not None:
+        _sfx.play("slider")
 
 
 # ---- font helpers -------------------------------------------------------
@@ -189,6 +249,7 @@ class PixelButton(QWidget):
             self._pressed = False
             self.update()
             if self.rect().contains(e.position().toPoint()):
+                _click()
                 self.clicked.emit()
 
     def paintEvent(self, event: QPaintEvent) -> None:
@@ -266,6 +327,7 @@ class PixelCheckbox(QWidget):
     def mousePressEvent(self, e: QMouseEvent) -> None:
         if e.button() == Qt.MouseButton.LeftButton:
             self.setChecked(not self._checked)
+            _toggle_sfx(self._checked)
 
     def paintEvent(self, event: QPaintEvent) -> None:
         p = QPainter(self)
@@ -330,6 +392,7 @@ class PixelSlider(QWidget):
         if abs(v - self._value) < 1e-9:
             return
         self._value = v
+        _slider_sfx()
         self.update()
         self.valueChanged.emit(self._value)
 
@@ -456,8 +519,10 @@ class PixelSpinBox(QWidget):
         bs = self._btn_size()
         if x < bs:
             self.setValue(self._value - self._step)
+            _click()
         elif x > self.width() - bs:
             self.setValue(self._value + self._step)
+            _click()
 
     def paintEvent(self, event: QPaintEvent) -> None:
         p = QPainter(self)
@@ -560,6 +625,7 @@ class PixelComboBox(QWidget):
             return
         y = int(e.position().y())
         if not self._open:
+            _click()
             self._expand()
             self.update()
             return
@@ -575,6 +641,7 @@ class PixelComboBox(QWidget):
             self._collapse()
             self.update()
             if old != self._current:
+                _click()
                 self.currentIndexChanged.emit(self._current)
 
     def mouseMoveEvent(self, e: QMouseEvent) -> None:

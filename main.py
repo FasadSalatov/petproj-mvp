@@ -3,20 +3,22 @@
 Launches all configured actors (person, 1..N cats) — each one a transparent
 always-on-top scene that triggers on user idle. The system-tray icon
 exposes Config, Summon, Feed, Drop treat, Pomodoro, Skin, Achievements,
-Cat count, Boss-key (Ctrl+Shift+H) and Quit.
+Theme, Cat count, Boss-key (Ctrl+Shift+H) and Quit.
 """
 import os
 import sys
 
 from PyQt6.QtCore import QSize, Qt
-from PyQt6.QtGui import QCursor, QIcon
+from PyQt6.QtGui import QCursor, QIcon, QPixmap
 from PyQt6.QtWidgets import QApplication, QMenu, QMessageBox, QSystemTrayIcon
 
+import sfx
 from achievements import AchievementTracker
 from cat_scene import CatScene
 from config import Config
 from config_window import ConfigWindow
 from hotkeys import GlobalHotkey
+from pixel_ui import current_theme_name, set_theme
 from scene import ASSETS_DIR, Scene
 from skins import SKINS
 from spritesheet import SpriteSheet
@@ -26,6 +28,15 @@ TREAT_OFFSET_PX = 80     # stagger between treats when several cats hunt
 
 
 def _build_tray_icon() -> QIcon:
+    """Pixel-art cat-head icon (PixelLab) if present, otherwise fall back to
+    the original person sprite head from the sprite sheet."""
+    cat_path = os.path.join(ASSETS_DIR, "icons", "cat_head.png")
+    if os.path.exists(cat_path):
+        pix = QPixmap(cat_path)
+        if not pix.isNull():
+            pix = pix.scaled(QSize(64, 64), Qt.AspectRatioMode.KeepAspectRatio,
+                             Qt.TransformationMode.FastTransformation)
+            return QIcon(pix)
     sheet = SpriteSheet.load(os.path.join(ASSETS_DIR, "person", "icon"))
     pix = sheet.frame(0, scale=2)
     pix = pix.scaled(QSize(32, 32), Qt.AspectRatioMode.KeepAspectRatio,
@@ -119,6 +130,23 @@ class TrayController:
         trophy = _icon("trophy")
         if trophy: self.achievements_action.setIcon(trophy)
         self.achievements_action.triggered.connect(self._on_show_achievements)
+
+        # Theme submenu — light / dark.
+        self.theme_menu = self.menu.addMenu("Theme")
+        self._theme_actions = []
+        for name in ("light", "dark"):
+            act = self.theme_menu.addAction(name)
+            act.setCheckable(True)
+            act.setChecked(name == self.config.behaviour.theme)
+            act.triggered.connect(lambda _c=False, n=name: self._on_pick_theme(n))
+            self._theme_actions.append(act)
+
+        # Sounds toggle.
+        self.sounds_action = self.menu.addAction("Sound effects")
+        self.sounds_action.setCheckable(True)
+        self.sounds_action.setChecked(self.config.behaviour.sounds)
+        self.sounds_action.triggered.connect(self._on_toggle_sounds)
+
         self.menu.addSeparator()
         self.reload_action = self.menu.addAction("Reload sprites")
         self.reload_action.triggered.connect(self._on_reload)
@@ -221,6 +249,18 @@ class TrayController:
         for act in self._skin_actions:
             act.setChecked(act.text() == name)
 
+    def _on_pick_theme(self, name: str) -> None:
+        self.config.behaviour.theme = name
+        self.config.save()
+        set_theme(name)
+        for act in self._theme_actions:
+            act.setChecked(act.text() == name)
+
+    def _on_toggle_sounds(self, checked: bool) -> None:
+        self.config.behaviour.sounds = bool(checked)
+        self.config.save()
+        sfx.set_enabled(bool(checked))
+
     def _on_show_achievements(self) -> None:
         rows = []
         for ach, unlocked, value in self.achievements.all_progress():
@@ -298,10 +338,27 @@ class TrayController:
 
 
 def main() -> int:
+    config = Config.load()
+
+    # GPU rendering: ask Qt to use OpenGL when available so widget compositing
+    # rides the dedicated GPU rather than the CPU raster path. Must be set
+    # before QApplication is constructed; falls back silently on machines
+    # without a GL driver.
+    if config.behaviour.gpu_render:
+        try:
+            QApplication.setAttribute(Qt.ApplicationAttribute.AA_UseDesktopOpenGL)
+            QApplication.setAttribute(Qt.ApplicationAttribute.AA_ShareOpenGLContexts)
+        except Exception:
+            pass
+
     app = QApplication(sys.argv)
     app.setQuitOnLastWindowClosed(False)
 
-    config = Config.load()
+    # Apply persisted theme + preload UI sounds before any pixel widget is built.
+    set_theme(config.behaviour.theme or "light")
+    sfx.preload(parent=app)
+    sfx.set_enabled(bool(config.behaviour.sounds))
+
     person_scene = Scene(config)
 
     achievements = AchievementTracker()

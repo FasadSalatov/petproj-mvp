@@ -26,6 +26,9 @@ class BehaviourCfg:
     idle_threshold_s: float = 5.0
     debug_always_on: bool = False     # bypass idle gate for both scenes
     debug_paused: bool = False        # freeze tick (for frame-step debug)
+    theme: str = "light"              # "light" | "dark"  — UI palette
+    sounds: bool = True               # global UI-sound switch
+    gpu_render: bool = True           # request OpenGL backend at startup
 
 
 @dataclass
