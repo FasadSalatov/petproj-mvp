@@ -33,6 +33,24 @@ def _build_tray_icon() -> QIcon:
     return QIcon(pix)
 
 
+def _icon(name: str, size: int = 24) -> QIcon | None:
+    """Load a PixelLab-generated icon from assets/icons/<name>.png if present.
+
+    Returns None when the file is missing — callers should treat that as
+    "no icon, just text". Icons are scaled nearest-neighbour to keep the
+    pixel-art look at standard menu sizes."""
+    path = os.path.join(ASSETS_DIR, "icons", f"{name}.png")
+    if not os.path.exists(path):
+        return None
+    from PyQt6.QtGui import QPixmap
+    pix = QPixmap(path)
+    if pix.isNull():
+        return None
+    pix = pix.scaled(size, size, Qt.AspectRatioMode.KeepAspectRatio,
+                     Qt.TransformationMode.FastTransformation)
+    return QIcon(pix)
+
+
 class TrayController:
     def __init__(
         self, app: QApplication, config: Config,
@@ -52,16 +70,26 @@ class TrayController:
 
         self.menu = QMenu()
         self.config_action = self.menu.addAction("Config")
+        cog = _icon("cog")
+        if cog: self.config_action.setIcon(cog)
         self.config_action.triggered.connect(self._open_config_window)
         self.summon_action = self.menu.addAction("Summon to cursor")
+        magnet = _icon("magnet")
+        if magnet: self.summon_action.setIcon(magnet)
         self.summon_action.triggered.connect(self._on_summon)
         self.feed_action = self.menu.addAction("Feed cat")
+        feed = _icon("feed")
+        if feed: self.feed_action.setIcon(feed)
         self.feed_action.triggered.connect(self._on_feed)
         self.treat_action = self.menu.addAction("Drop treat at cursor")
+        fish = _icon("fish")
+        if fish: self.treat_action.setIcon(fish)
         self.treat_action.triggered.connect(self._on_drop_treat)
         self.menu.addSeparator()
 
         self.pomodoro_action = self.menu.addAction("Start Pomodoro (25/5)")
+        tomato = _icon("tomato")
+        if tomato: self.pomodoro_action.setIcon(tomato)
         self.pomodoro_action.triggered.connect(self._on_toggle_pomodoro)
 
         # Cat count submenu (live-applied).
@@ -88,6 +116,8 @@ class TrayController:
 
         self.menu.addSeparator()
         self.achievements_action = self.menu.addAction("Achievements…")
+        trophy = _icon("trophy")
+        if trophy: self.achievements_action.setIcon(trophy)
         self.achievements_action.triggered.connect(self._on_show_achievements)
         self.menu.addSeparator()
         self.reload_action = self.menu.addAction("Reload sprites")
@@ -118,6 +148,8 @@ class TrayController:
             return
         self._config_window = ConfigWindow(
             self.config, self._on_config_changed, self._on_step,
+            cat_scenes=self.cat_scenes,
+            achievements=self.achievements,
         )
         self._config_window.show()
 
